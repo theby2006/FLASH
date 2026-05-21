@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { adminAuth, isFirebaseConfigured } from "../config/firebase";
+import { resolveDbUserId } from "../services/userIdentity";
 
 export interface AuthRequest extends Request {
   user?: {
@@ -45,9 +46,13 @@ export const authMiddleware = async (
 
     const token = authHeader.split("Bearer ")[1];
     const decoded = await adminAuth.verifyIdToken(token);
+    const dbUserId = await resolveDbUserId(
+      decoded.uid,
+      decoded.email ?? ""
+    );
 
     req.user = {
-      uid: decoded.uid,
+      uid: dbUserId,
       email: decoded.email ?? "",
       name: decoded.name ?? "",
       picture: decoded.picture ?? "",

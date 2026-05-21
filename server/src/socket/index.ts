@@ -45,11 +45,6 @@ export const initSocket = (io: Server) => {
 
     const wasOffline = !isUserOnline(userId);
     trackOnlineUser(userId, socket.id);
-    console.log(`[Socket] User connected: ${userId}`);
-
-    if (wasOffline) {
-      await notifyFriendsUserOnline(userId);
-    }
 
     const memberships = await prisma.groupMember.findMany({
       where: { userId },
@@ -57,6 +52,12 @@ export const initSocket = (io: Server) => {
     });
     for (const m of memberships) {
       socket.join(m.conversationId);
+    }
+
+    console.log(`[Socket] User connected: ${userId} (${memberships.length} chats)`);
+
+    if (wasOffline) {
+      await notifyFriendsUserOnline(userId);
     }
 
     await registerPresenceHandlers(io, socket, userId);

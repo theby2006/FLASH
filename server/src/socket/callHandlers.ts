@@ -1,11 +1,15 @@
 import { Server, Socket } from "socket.io";
 import { prisma } from "../config/db";
 // Calls: DB record first, then Socket.io signaling to peer
-import { emitToUser, isUserOnline } from "./socketNotifier";
+import { emitToUser } from "./socketNotifier";
 import {
   recordCallInvite,
   updateCallStatus,
 } from "../services/callService";
+import {
+  deliverCallIncoming,
+  resolveCalleeInConversation,
+} from "./callDelivery";
 
 export type CallType = "audio" | "video";
 
@@ -45,21 +49,12 @@ async function canUsersCallInConversation(
 
   if (!callerMember || !calleeMember) return false;
 
-  // 1:1 DM: both must be in the conversation (friends when DM was created)
-  const friendship = await prisma.friendship.findFirst({
-    where: {
-      OR: [
-        { userId: callerId, friendId: calleeId },
-        { userId: calleeId, friendId: callerId },
-      ],
-    },
-  });
-
-  return !!friendship;
+  // 1:1 DM with both members — sufficient to call (DM creation already requires friendship)
+  return true;
 }
 
 export const registerCallHandlers = (
-  _io: Server,
+  io: Server,
   socket: Socket,
   userId: string
 ) => {
@@ -71,76 +66,90 @@ export const registerCallHandlers = (
     return emitToUser(targetUserId, event, { ...payload, fromUserId: userId });
   };
 
-  socket.on("call_invite", async (payload: CallInvitePayload) => {
-    const { callId, conversationId, callType, toUserId, fromDisplayName } =
-      payload ?? {};
+  socket.on(
+    "call_invite",
+    async (
+      payload: CallInvitePayload,
+      ack?: (res: {
+        ok: boolean;
+        delivered?: boolean;
+        message?: string;
+      }) => void
+    ) => {
+      const { callId, conversationId, callType, toUserId, fromDisplayName } =
+        payload ?? {};
 
-    if (!callId || !conversationId || !toUserId || !callType) return;
-
-    const allowed = await canUsersCallInConversation(
-      userId,
-      toUserId,
-      conversationId
-    );
-    if (!allowed) {
-      socket.emit("call_error", {
-        callId,
-        message: "Cannot call this user",
-      });
-      return;
-    }
-
-    await recordCallInvite({
-      callId,
-      conversationId,
-      callerId: userId,
-      calleeId: toUserId,
-      callType,
-    });
-
-    const incomingPayload = {
-      callId,
-      conversationId,
-      callType,
-      fromDisplayName: fromDisplayName ?? "Someone",
-    };
-
-    let delivered = forwardToUser(toUserId, "call_incoming", incomingPayload);
-
-    // Brief retry — socket may register online a moment after connect
-    if (!delivered) {
-      await new Promise((r) => setTimeout(r, 600));
-      if (isUserOnline(toUserId)) {
-        delivered = forwardToUser(toUserId, "call_incoming", incomingPayload);
+      if (!callId || !conversationId || !toUserId || !callType) {
+        ack?.({ ok: false, message: "Invalid call payload" });
+        return;
       }
-    }
 
-    // Backup: callee auto-joins DM rooms on connect
-    if (!delivered) {
-      const calleeSockets = await _io.in(conversationId).fetchSockets();
-      const calleeSocket = calleeSockets.find(
-        (s) => (s.data as { userId?: string }).userId === toUserId
+      const calleeId = await resolveCalleeInConversation(
+        conversationId,
+        userId,
+        toUserId
       );
-      if (calleeSocket) {
-        calleeSocket.emit("call_incoming", {
-          ...incomingPayload,
-          fromUserId: userId,
+
+      if (!calleeId) {
+        socket.emit("call_error", {
+          callId,
+          message: "Cannot call this conversation",
         });
-        delivered = true;
+        ack?.({ ok: false, message: "Not a 1:1 chat" });
+        return;
       }
-    }
 
-    if (!delivered) {
-      await updateCallStatus(callId, "MISSED");
-      socket.emit("call_unreachable", {
+      const allowed = await canUsersCallInConversation(
+        userId,
+        calleeId,
+        conversationId
+      );
+      if (!allowed) {
+        socket.emit("call_error", {
+          callId,
+          message: "Cannot call this user",
+        });
+        ack?.({ ok: false, message: "Not allowed" });
+        return;
+      }
+
+      await recordCallInvite({
         callId,
-        message: "User is offline",
+        conversationId,
+        callerId: userId,
+        calleeId,
+        callType,
       });
-      return;
-    }
 
-    socket.emit("call_ringing", { callId, delivered: true });
-  });
+      const incomingPayload = {
+        callId,
+        conversationId,
+        callType,
+        fromDisplayName: fromDisplayName ?? "Someone",
+      };
+
+      const delivered = await deliverCallIncoming(
+        io,
+        userId,
+        calleeId,
+        conversationId,
+        incomingPayload
+      );
+
+      if (!delivered) {
+        await updateCallStatus(callId, "MISSED");
+        socket.emit("call_unreachable", {
+          callId,
+          message: "Friend is offline — ask them to open FLASH and check Live status",
+        });
+        ack?.({ ok: false, delivered: false, message: "User offline" });
+        return;
+      }
+
+      socket.emit("call_ringing", { callId, delivered: true });
+      ack?.({ ok: true, delivered: true });
+    }
+  );
 
   socket.on(
     "call_accept",
@@ -152,15 +161,22 @@ export const registerCallHandlers = (
       const { callId, conversationId, toUserId } = payload ?? {};
       if (!callId || !conversationId || !toUserId) return;
 
+      const peerId =
+        (await resolveCalleeInConversation(
+          conversationId,
+          userId,
+          toUserId
+        )) ?? toUserId;
+
       const allowed = await canUsersCallInConversation(
         userId,
-        toUserId,
+        peerId,
         conversationId
       );
       if (!allowed) return;
 
       await updateCallStatus(callId, "ACCEPTED");
-      forwardToUser(toUserId, "call_accept", { callId, conversationId });
+      forwardToUser(peerId, "call_accept", { callId, conversationId });
     }
   );
 

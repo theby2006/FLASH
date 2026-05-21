@@ -309,13 +309,25 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
       setStatus("outgoing");
       setError(null);
 
-      socket.emit("call_invite", {
-        callId,
-        conversationId,
-        callType,
-        toUserId: remoteUserId,
-        fromDisplayName: dbUser.displayName,
-      });
+      socket.emit(
+        "call_invite",
+        {
+          callId,
+          conversationId,
+          callType,
+          toUserId: remoteUserId,
+          fromDisplayName: dbUser.displayName,
+        },
+        (res?: { ok: boolean; delivered?: boolean; message?: string }) => {
+          if (!res?.ok) {
+            setError(
+              res?.message ??
+                "Could not reach your friend — they must be online with Live shown"
+            );
+            endCall(false);
+          }
+        }
+      );
 
       try {
         await prepareCallerMedia(
