@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { adminAuth } from "../config/firebase";
+import { adminAuth, isFirebaseConfigured } from "../config/firebase";
 
 export interface AuthRequest extends Request {
   user?: {
@@ -16,6 +16,15 @@ export const authMiddleware = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    if (!isFirebaseConfigured || !adminAuth) {
+      res.status(503).json({
+        success: false,
+        message:
+          "Server auth not configured. Add Firebase Admin credentials to server/.env",
+      });
+      return;
+    }
+
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {

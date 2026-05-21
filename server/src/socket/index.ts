@@ -1,5 +1,5 @@
 import { Server } from "socket.io";
-import { adminAuth } from "../config/firebase";
+import { adminAuth, isFirebaseConfigured } from "../config/firebase";
 import { registerChatHandlers } from "./chatHandlers";
 import { registerPresenceHandlers } from "./presenceHandlers";
 import {
@@ -13,6 +13,10 @@ export const initSocket = (io: Server) => {
 
   io.use(async (socket, next) => {
     try {
+      if (!isFirebaseConfigured || !adminAuth) {
+        return next(new Error("Auth not configured"));
+      }
+
       const token = socket.handshake.auth?.token as string;
       if (!token) return next(new Error("Unauthorized"));
 
