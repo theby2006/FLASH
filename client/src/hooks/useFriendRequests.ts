@@ -1,22 +1,13 @@
 import { useEffect, useCallback } from "react";
 import { useSocket } from "./useSocket";
 import { useChatStore } from "../store/useChatStore";
-import {
-  getPendingRequests,
-  respondToRequest,
-} from "../services/userService";
+import { respondToRequest } from "../services/userService";
 import type { FriendRequest } from "../types";
 
 export const useFriendRequests = () => {
   const { socket } = useSocket();
-  const { pendingRequests, setPendingRequests, addPendingRequest, removePendingRequest } =
+  const { pendingRequests, addPendingRequest, removePendingRequest } =
     useChatStore();
-
-  useEffect(() => {
-    getPendingRequests()
-      .then(setPendingRequests)
-      .catch(console.error);
-  }, [setPendingRequests]);
 
   useEffect(() => {
     if (!socket) return;

@@ -13,11 +13,14 @@ import type { Message } from "../types";
 interface SocketContextType {
   socket: Socket | null;
   connected: boolean;
+  /** Increments on each connect/reconnect — triggers data refresh */
+  refreshSignal: number;
 }
 
 const SocketContext = createContext<SocketContextType>({
   socket: null,
   connected: false,
+  refreshSignal: 0,
 });
 
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
@@ -26,6 +29,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
   const { idToken } = useAuthContext();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [connected, setConnected] = useState(false);
+  const [refreshSignal, setRefreshSignal] = useState(0);
   const { setUserOnline, setUserOffline, markMessagesReadByIds } = useChatStore();
 
   useEffect(() => {
@@ -37,16 +41,29 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
     }
 
     const s = io(SOCKET_URL, {
+      path: "/socket.io",
       auth: { token: idToken },
-      transports: ["websocket"],
-      reconnectionAttempts: 5,
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
     });
 
     setSocket(s);
 
-    s.on("connect", () => setConnected(true));
-    s.on("disconnect", () => setConnected(false));
+    const onConnect = () => {
+      setConnected(true);
+      setRefreshSignal((n) => n + 1);
+      console.log("[Socket] Connected");
+    };
+
+    s.on("connect", onConnect);
+    s.on("disconnect", (reason) => {
+      setConnected(false);
+      console.log("[Socket] Disconnected:", reason);
+    });
     s.on("connect_error", (err) =>
       console.error("[Socket] Connect error:", err.message)
     );
@@ -73,14 +90,22 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
         markMessagesReadByIds(conversationId, userId, messageIds);
       }
     );
+
     s.on("new_message", (msg: Message) => {
       const state = useChatStore.getState();
-      if (msg.conversationId !== state.activeConversationId) {
+      state.addMessage(msg.conversationId, msg);
+      state.updateLastMessage(msg.conversationId, msg);
+
+      if (msg.conversationId === state.activeConversationId) {
+        s.emit("message_read", { conversationId: msg.conversationId });
+        state.clearUnread(msg.conversationId);
+      } else {
         state.incrementUnread(msg.conversationId);
       }
     });
 
     return () => {
+      s.off("connect", onConnect);
       s.disconnect();
       setSocket(null);
       setConnected(false);
@@ -88,7 +113,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [idToken, setUserOnline, setUserOffline, markMessagesReadByIds]);
 
   return (
-    <SocketContext.Provider value={{ socket, connected }}>
+    <SocketContext.Provider value={{ socket, connected, refreshSignal }}>
       {children}
     </SocketContext.Provider>
   );

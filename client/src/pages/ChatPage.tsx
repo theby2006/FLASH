@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import { useChatStore } from "../store/useChatStore";
-import { getContacts } from "../services/userService";
 import ContactList from "../components/contacts/ContactList";
+import ConnectionStatus from "../components/ui/ConnectionStatus";
 import SearchBar from "../components/contacts/SearchBar";
 import ChatWindow from "../components/chat/ChatWindow";
 import GroupList from "../components/groups/GroupList";
@@ -13,17 +14,10 @@ import Spinner from "../components/ui/Spinner";
 
 const ChatPage: React.FC = () => {
   const { dbUser, signOut, loading } = useAuth();
-  const {
-    conversations,
-    activeConversationId,
-    setActiveConversationId,
-    setContacts,
-  } = useChatStore();
+  const { conversations, activeConversationId, setActiveConversationId } =
+    useChatStore();
   const [showGroupInfo, setShowGroupInfo] = useState(false);
-
-  useEffect(() => {
-    getContacts().then(setContacts).catch(console.error);
-  }, [setContacts]);
+  const { connected } = useAutoRefresh();
 
   if (loading) {
     return (
@@ -48,7 +42,10 @@ const ChatPage: React.FC = () => {
         <header className="sidebar-header">
           <div className="user-profile">
             <Avatar src={dbUser.photoURL} name={dbUser.displayName} size="md" />
-            <span className="user-name">{dbUser.displayName}</span>
+            <div className="user-profile-text">
+              <span className="user-name">{dbUser.displayName}</span>
+              <ConnectionStatus connected={connected} />
+            </div>
           </div>
           <button className="logout-btn" onClick={signOut} aria-label="Sign out">
             <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none">

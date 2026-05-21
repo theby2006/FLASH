@@ -74,12 +74,22 @@ Do not commit `.env` files or OAuth client secrets.
 
 ## ✨ Key Features
 * **Google Authentication:** Secure login using Firebase Auth.
-* **Real-time Messaging:** Powered by Socket.io for instantaneous 1-on-1 and Group chats.
+* **Real-time Messaging:** Socket.io (WebSocket + polling fallback) with auto-refresh every 30s and on reconnect.
 * **Friend System:** Search users by email, send/accept/reject friend requests.
 * **Group Chats:** Create groups, add/remove members (Admins).
 * **Presence & Typing:** See who is online and when they are typing.
 * **Read Receipts:** Track message delivery and read status.
+* **Voice & Video Calls:** 1:1 WebRTC calls with Socket.io signaling (DM friends only).
 * **Responsive UI:** Modern, dark-mode native-like interface.
+
+## Voice & video calls
+
+1:1 **audio** and **video** calls work over **WebRTC** (encrypted media) with **Socket.io** signaling on your existing server.
+
+- Use the phone / camera icons in a **direct message** chat header.
+- Both users must be **friends** and **online** (connected via socket).
+- **HTTPS** (or `localhost`) is required for camera/microphone access.
+- For production behind strict firewalls, add a **TURN** server to `ICE_SERVERS` in `client/src/utils/constants.ts`.
 
 ## 👥 Development Workflow
 

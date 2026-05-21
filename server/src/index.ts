@@ -4,9 +4,10 @@ import http from "http";
 import { Server } from "socket.io";
 import cors from "cors";
 import helmet from "helmet";
+import path from "path";
 import dotenv from "dotenv";
 
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 import authRoutes from "./routes/authRoutes";
 import userRoutes from "./routes/userRoutes";

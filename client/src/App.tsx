@@ -2,6 +2,7 @@ import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuthContext } from "./contexts/AuthContext";
 import { SocketProvider } from "./contexts/SocketContext";
+import CallProvider from "./contexts/CallProvider";
 import LoginPage from "./pages/LoginPage";
 import ChatPage from "./pages/ChatPage";
 import NotFoundPage from "./pages/NotFoundPage";
@@ -45,7 +46,9 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <SocketProvider>
-              <ChatPage />
+              <CallProvider>
+                <ChatPage />
+              </CallProvider>
             </SocketProvider>
           </ProtectedRoute>
         }

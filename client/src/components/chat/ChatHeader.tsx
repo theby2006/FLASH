@@ -3,6 +3,7 @@ import type { Conversation } from "../../types";
 import { useAuth } from "../../hooks/useAuth";
 import { useChatStore } from "../../store/useChatStore";
 import Avatar from "../ui/Avatar";
+import CallButtons from "../call/CallButtons";
 
 interface ChatHeaderProps {
   conversation: Conversation;
@@ -65,16 +66,19 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
           {statusText}
         </span>
       </div>
-      {conversation.isGroup && (
-        <button
-          id="group-info-btn"
-          className="chat-header-info-btn"
-          onClick={onInfoClick}
-          aria-label="Group info"
-        >
-          ℹ
-        </button>
-      )}
+      <div className="chat-header-actions">
+        <CallButtons conversation={conversation} />
+        {conversation.isGroup && (
+          <button
+            id="group-info-btn"
+            className="chat-header-info-btn"
+            onClick={onInfoClick}
+            aria-label="Group info"
+          >
+            ℹ
+          </button>
+        )}
+      </div>
     </div>
   );
 };

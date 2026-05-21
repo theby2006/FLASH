@@ -16,6 +16,7 @@ interface ChatStore {
   setMessages: (conversationId: string, msgs: Message[]) => void;
   prependMessages: (conversationId: string, msgs: Message[]) => void;
   addMessage: (conversationId: string, msg: Message) => void;
+  mergeLatestMessages: (conversationId: string, latest: Message[]) => void;
   markMessagesReadByIds: (
     conversationId: string,
     userId: string,
@@ -87,12 +88,34 @@ export const useChatStore = create<ChatStore>((set) => ({
       },
     })),
   addMessage: (conversationId, msg) =>
-    set((s) => ({
-      messages: {
-        ...s.messages,
-        [conversationId]: [...(s.messages[conversationId] ?? []), msg],
-      },
-    })),
+    set((s) => {
+      const existing = s.messages[conversationId] ?? [];
+      if (existing.some((m) => m.id === msg.id)) return s;
+      return {
+        messages: {
+          ...s.messages,
+          [conversationId]: [...existing, msg],
+        },
+      };
+    }),
+  mergeLatestMessages: (conversationId, latest) =>
+    set((s) => {
+      const existing = s.messages[conversationId] ?? [];
+      if (existing.length === 0) {
+        return { messages: { ...s.messages, [conversationId]: latest } };
+      }
+      const existingIds = new Set(existing.map((m) => m.id));
+      const updated = existing.map((ex) => {
+        const fresh = latest.find((m) => m.id === ex.id);
+        return fresh ? { ...ex, readBy: fresh.readBy } : ex;
+      });
+      const newOnes = latest.filter((m) => !existingIds.has(m.id));
+      const merged = [...updated, ...newOnes].sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
+      return { messages: { ...s.messages, [conversationId]: merged } };
+    }),
   markMessagesReadByIds: (conversationId, userId, messageIds) =>
     set((s) => {
       const msgs = s.messages[conversationId];

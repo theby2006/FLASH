@@ -2,6 +2,7 @@ import { Server } from "socket.io";
 import { adminAuth, isFirebaseConfigured } from "../config/firebase";
 import { registerChatHandlers } from "./chatHandlers";
 import { registerPresenceHandlers } from "./presenceHandlers";
+import { registerCallHandlers } from "./callHandlers";
 import {
   bindSocketNotifier,
   trackOnlineUser,
@@ -38,6 +39,7 @@ export const initSocket = (io: Server) => {
 
     registerChatHandlers(io, socket, userId);
     registerPresenceHandlers(io, socket, userId);
+    registerCallHandlers(io, socket, userId);
 
     socket.on("disconnect", () => {
       untrackOnlineUser(userId);

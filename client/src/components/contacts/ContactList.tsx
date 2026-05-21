@@ -1,6 +1,6 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { useChatStore } from "../../store/useChatStore";
-import { getConversations, getOrCreateDM } from "../../services/chatService";
+import { getOrCreateDM } from "../../services/chatService";
 import ContactItem from "./ContactItem";
 import { useFriendRequests } from "../../hooks/useFriendRequests";
 import FriendRequestCard from "./FriendRequestCard";
@@ -14,19 +14,12 @@ const ContactList: React.FC<ContactListProps> = ({ onSelectConversation }) => {
   const {
     conversations,
     contacts,
-    setConversations,
     activeConversationId,
     setActiveConversationId,
     addConversation,
     onlineUsers,
   } = useChatStore();
   const { pendingRequests } = useFriendRequests();
-
-  useEffect(() => {
-    getConversations()
-      .then(setConversations)
-      .catch(console.error);
-  }, [setConversations]);
 
   const handleSelect = (id: string) => {
     setActiveConversationId(id);

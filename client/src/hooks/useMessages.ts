@@ -2,26 +2,21 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useSocket } from "./useSocket";
 import { useChatStore } from "../store/useChatStore";
 import { getMessages } from "../services/chatService";
-import type { Message } from "../types";
 
 export const useMessages = (conversationId: string | null) => {
-  const { socket } = useSocket();
+  const { socket, refreshSignal } = useSocket();
   const {
     messages,
     setMessages,
     prependMessages,
-    addMessage,
-    updateLastMessage,
     setTyping,
     clearTyping,
     clearUnread,
-    markMessagesReadByIds,
   } = useChatStore();
 
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const pageRef = useRef(1);
-  const joinedRef = useRef<string | null>(null);
 
   const conversationMessages = conversationId
     ? (messages[conversationId] ?? [])
@@ -32,7 +27,6 @@ export const useMessages = (conversationId: string | null) => {
 
     pageRef.current = 1;
     setHasMore(true);
-    joinedRef.current = null;
 
     const load = async () => {
       setLoading(true);
@@ -49,54 +43,14 @@ export const useMessages = (conversationId: string | null) => {
     load();
   }, [conversationId, setMessages]);
 
+  // Re-join room after reconnect (refreshSignal) or socket ready
   useEffect(() => {
     if (!socket || !conversationId) return;
-    if (joinedRef.current === conversationId) return;
 
     socket.emit("join_conversation", { conversationId });
     socket.emit("message_read", { conversationId });
-    joinedRef.current = conversationId;
     clearUnread(conversationId);
-  }, [socket, conversationId, clearUnread]);
-
-  useEffect(() => {
-    if (!socket) return;
-
-    const onNewMessage = (msg: Message) => {
-      addMessage(msg.conversationId, msg);
-      updateLastMessage(msg.conversationId, msg);
-
-      if (msg.conversationId === conversationId) {
-        socket.emit("message_read", { conversationId: msg.conversationId });
-      }
-    };
-
-    socket.on("new_message", onNewMessage);
-    return () => {
-      socket.off("new_message", onNewMessage);
-    };
-  }, [socket, conversationId, addMessage, updateLastMessage]);
-
-  useEffect(() => {
-    if (!socket) return;
-
-    const onMessagesRead = ({
-      conversationId: convId,
-      userId,
-      messageIds,
-    }: {
-      conversationId: string;
-      userId: string;
-      messageIds: string[];
-    }) => {
-      markMessagesReadByIds(convId, userId, messageIds);
-    };
-
-    socket.on("messages_read", onMessagesRead);
-    return () => {
-      socket.off("messages_read", onMessagesRead);
-    };
-  }, [socket, markMessagesReadByIds]);
+  }, [socket, conversationId, refreshSignal, clearUnread]);
 
   useEffect(() => {
     if (!socket) return;
@@ -142,7 +96,7 @@ export const useMessages = (conversationId: string | null) => {
   }, [conversationId, loading, hasMore, prependMessages]);
 
   const sendMessage = useCallback(
-    (content: string, type: Message["type"] = "TEXT") => {
+    (content: string, type: "TEXT" | "IMAGE" | "FILE" = "TEXT") => {
       if (!socket || !conversationId || !content.trim()) return;
       socket.emit("send_message", { conversationId, content, type });
     },
