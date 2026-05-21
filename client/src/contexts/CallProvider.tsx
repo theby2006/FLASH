@@ -8,7 +8,8 @@ import React, {
 import { useSocketContext } from "./SocketContext";
 import { useAuthContext } from "./AuthContext";
 import { useCallStore, createCallId } from "../store/useCallStore";
-import { ICE_SERVERS } from "../utils/constants";
+import { ICE_SERVERS, CALL_RING_TIMEOUT_MS } from "../utils/constants";
+import { useCallRingtone } from "../hooks/useCallRingtone";
 import type { CallType } from "../types/call";
 import IncomingCallModal from "../components/call/IncomingCallModal";
 import ActiveCallOverlay from "../components/call/ActiveCallOverlay";
@@ -38,6 +39,7 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   const { dbUser } = useAuthContext();
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
+  const iceQueueRef = useRef<RTCIceCandidateInit[]>([]);
 
   const {
     status,
@@ -50,10 +52,29 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     localStream,
   } = useCallStore();
 
+  const isRinging = status === "incoming" || status === "outgoing";
+  useCallRingtone(
+    isRinging,
+    status === "incoming" ? "incoming" : "outgoing"
+  );
+
+  const flushIceQueue = useCallback(async (pc: RTCPeerConnection) => {
+    const queued = [...iceQueueRef.current];
+    iceQueueRef.current = [];
+    for (const candidate of queued) {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (err) {
+        console.warn("[Call] Queued ICE:", err);
+      }
+    }
+  }, []);
+
   const cleanupPeer = useCallback(() => {
     peerRef.current?.close();
     peerRef.current = null;
     pendingOfferRef.current = null;
+    iceQueueRef.current = [];
     localStream?.getTracks().forEach((t) => t.stop());
     useCallStore.getState().remoteStream?.getTracks().forEach((t) => t.stop());
     setLocalStream(null);
@@ -77,7 +98,10 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 
   const getMediaStream = useCallback(async (callType: CallType) => {
     return navigator.mediaDevices.getUserMedia({
-      audio: true,
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+      },
       video: callType === "video",
     });
   }, []);
@@ -104,9 +128,12 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
       };
 
       pc.onconnectionstatechange = () => {
+        if (pc.connectionState === "connected") {
+          setStatus("active");
+        }
         if (
           pc.connectionState === "failed" ||
-          pc.connectionState === "closed"
+          pc.connectionState === "disconnected"
         ) {
           setError("Call connection lost");
           endCall(false);
@@ -130,6 +157,25 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         conversationId: s.conversationId,
         toUserId: s.remoteUserId,
         sdp: answer,
+      });
+    },
+    [socket]
+  );
+
+  const sendOffer = useCallback(
+    async (pc: RTCPeerConnection) => {
+      const s = useCallStore.getState().session;
+      if (!socket || !s) return;
+      const offer = await pc.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: s.callType === "video",
+      });
+      await pc.setLocalDescription(offer);
+      socket.emit("call_offer", {
+        callId: s.callId,
+        conversationId: s.conversationId,
+        toUserId: s.remoteUserId,
+        sdp: offer,
       });
     },
     [socket]
@@ -170,15 +216,6 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
           toUserId: remoteUserId,
           fromDisplayName: dbUser.displayName,
         });
-
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        socket.emit("call_offer", {
-          callId,
-          conversationId,
-          toUserId: remoteUserId,
-          sdp: offer,
-        });
       } catch (err) {
         console.error(err);
         setError("Could not access microphone or camera");
@@ -205,6 +242,12 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     setStatus("connecting");
     setError(null);
 
+    socket.emit("call_accept", {
+      callId: s.callId,
+      conversationId: s.conversationId,
+      toUserId: s.remoteUserId,
+    });
+
     try {
       const stream = await getMediaStream(s.callType);
       setLocalStream(stream);
@@ -221,6 +264,7 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
           new RTCSessionDescription(pendingOfferRef.current)
         );
         pendingOfferRef.current = null;
+        await flushIceQueue(pc);
         await sendAnswer(pc);
       }
     } catch (err) {
@@ -236,20 +280,44 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     setError,
     setLocalStream,
     sendAnswer,
+    flushIceQueue,
     endCall,
   ]);
 
   const rejectCall = useCallback(() => {
     const s = useCallStore.getState().session;
+    const st = useCallStore.getState().status;
     if (socket && s) {
-      socket.emit("call_reject", {
-        callId: s.callId,
-        toUserId: s.remoteUserId,
-      });
+      if (st === "outgoing") {
+        socket.emit("call_end", {
+          callId: s.callId,
+          toUserId: s.remoteUserId,
+        });
+      } else {
+        socket.emit("call_reject", {
+          callId: s.callId,
+          toUserId: s.remoteUserId,
+        });
+      }
     }
     cleanupPeer();
     resetCall();
   }, [socket, cleanupPeer, resetCall]);
+
+  // No answer timeout while ringing
+  useEffect(() => {
+    if (status !== "outgoing" && status !== "incoming") return;
+    const timer = window.setTimeout(() => {
+      if (
+        useCallStore.getState().status === "outgoing" ||
+        useCallStore.getState().status === "incoming"
+      ) {
+        setError("No answer");
+        endCall(true);
+      }
+    }, CALL_RING_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [status, setError, endCall]);
 
   useEffect(() => {
     if (!socket || !dbUser) return;
@@ -280,6 +348,25 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
       setStatus("incoming");
     };
 
+    const onAccept = async (payload: {
+      callId: string;
+      conversationId: string;
+    }) => {
+      const state = useCallStore.getState();
+      const s = state.session;
+      if (!s?.isInitiator || s.callId !== payload.callId) return;
+      if (!peerRef.current) return;
+
+      setStatus("connecting");
+      try {
+        await sendOffer(peerRef.current);
+      } catch (err) {
+        console.error(err);
+        setError("Failed to start call");
+        endCall(false);
+      }
+    };
+
     const onOffer = async (payload: {
       callId: string;
       conversationId: string;
@@ -292,28 +379,26 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
       if (s?.isInitiator) return;
 
       if (!s || s.callId !== payload.callId) {
-        setSession({
-          callId: payload.callId,
-          conversationId: payload.conversationId,
-          callType: "audio",
-          remoteUserId: payload.fromUserId,
-          remoteDisplayName: "Caller",
-          isInitiator: false,
-        });
-        setStatus("incoming");
         pendingOfferRef.current = payload.sdp;
         return;
       }
 
-      if (peerRef.current && state.status === "connecting") {
-        await peerRef.current.setRemoteDescription(
-          new RTCSessionDescription(payload.sdp)
-        );
-        await sendAnswer(peerRef.current);
-        return;
-      }
-
       pendingOfferRef.current = payload.sdp;
+
+      if (peerRef.current && state.status === "connecting") {
+        try {
+          await peerRef.current.setRemoteDescription(
+            new RTCSessionDescription(payload.sdp)
+          );
+          pendingOfferRef.current = null;
+          await flushIceQueue(peerRef.current);
+          await sendAnswer(peerRef.current);
+        } catch (err) {
+          console.error(err);
+          setError("Failed to connect call");
+          endCall(false);
+        }
+      }
     };
 
     const onAnswer = async (payload: {
@@ -322,10 +407,17 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     }) => {
       const s = useCallStore.getState().session;
       if (!s || s.callId !== payload.callId || !peerRef.current) return;
-      await peerRef.current.setRemoteDescription(
-        new RTCSessionDescription(payload.sdp)
-      );
-      setStatus("active");
+      try {
+        await peerRef.current.setRemoteDescription(
+          new RTCSessionDescription(payload.sdp)
+        );
+        await flushIceQueue(peerRef.current);
+        setStatus("active");
+      } catch (err) {
+        console.error(err);
+        setError("Failed to establish call");
+        endCall(false);
+      }
     };
 
     const onIce = async (payload: {
@@ -333,11 +425,15 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
       candidate: RTCIceCandidateInit;
     }) => {
       const s = useCallStore.getState().session;
-      if (!s || s.callId !== payload.callId || !peerRef.current) return;
+      const pc = peerRef.current;
+      if (!s || s.callId !== payload.callId || !pc) return;
+
+      if (!pc.remoteDescription) {
+        iceQueueRef.current.push(payload.candidate);
+        return;
+      }
       try {
-        await peerRef.current.addIceCandidate(
-          new RTCIceCandidate(payload.candidate)
-        );
+        await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
       } catch (err) {
         console.warn("[Call] ICE candidate:", err);
       }
@@ -362,6 +458,7 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     };
 
     socket.on("call_incoming", onIncoming);
+    socket.on("call_accept", onAccept);
     socket.on("call_offer", onOffer);
     socket.on("call_answer", onAnswer);
     socket.on("call_ice_candidate", onIce);
@@ -371,6 +468,7 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 
     return () => {
       socket.off("call_incoming", onIncoming);
+      socket.off("call_accept", onAccept);
       socket.off("call_offer", onOffer);
       socket.off("call_answer", onAnswer);
       socket.off("call_ice_candidate", onIce);
@@ -385,6 +483,8 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     setStatus,
     setError,
     sendAnswer,
+    sendOffer,
+    flushIceQueue,
     endCall,
   ]);
 

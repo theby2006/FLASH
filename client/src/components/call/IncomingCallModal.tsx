@@ -16,20 +16,27 @@ const IncomingCallModal: React.FC<IncomingCallModalProps> = ({
   if (!session) return null;
 
   const isVideo = session.callType === "video";
-  const title =
-    status === "outgoing"
-      ? `Calling ${session.remoteDisplayName}…`
-      : `Incoming ${isVideo ? "video" : "voice"} call`;
+  const isIncoming = status === "incoming";
+  const title = isIncoming
+    ? `Incoming ${isVideo ? "video" : "voice"} call`
+    : `Calling ${session.remoteDisplayName}…`;
 
   return (
     <div className="call-modal-backdrop" role="dialog" aria-modal="true">
-      <div className="call-modal">
-        <Avatar name={session.remoteDisplayName} size="xl" />
+      <div className={`call-modal ${isIncoming || status === "outgoing" ? "call-modal-ringing" : ""}`}>
+        <div className="call-modal-avatar-ring">
+          <Avatar name={session.remoteDisplayName} size="xl" />
+        </div>
         <h2 className="call-modal-title">{session.remoteDisplayName}</h2>
         <p className="call-modal-subtitle">{title}</p>
+        {(isIncoming || status === "outgoing") && (
+          <p className="call-modal-ring-hint" aria-live="polite">
+            {isIncoming ? "Ringing…" : "Ringing…"}
+          </p>
+        )}
         {error && <p className="call-modal-error">{error}</p>}
         <div className="call-modal-actions">
-          {status === "incoming" && (
+          {isIncoming && (
             <>
               <button
                 type="button"
@@ -45,14 +52,14 @@ const IncomingCallModal: React.FC<IncomingCallModalProps> = ({
                 onClick={onAccept}
                 aria-label="Accept call"
               >
-                ✓
+                {isVideo ? "📹" : "📞"}
               </button>
             </>
           )}
           {status === "outgoing" && (
             <button
               type="button"
-              className="call-btn call-btn-reject"
+              className="call-btn call-btn-reject call-btn-cancel"
               onClick={onReject}
               aria-label="Cancel call"
             >

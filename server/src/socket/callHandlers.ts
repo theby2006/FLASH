@@ -93,6 +93,27 @@ export const registerCallHandlers = (
   });
 
   socket.on(
+    "call_accept",
+    async (payload: {
+      callId: string;
+      conversationId: string;
+      toUserId: string;
+    }) => {
+      const { callId, conversationId, toUserId } = payload ?? {};
+      if (!callId || !conversationId || !toUserId) return;
+
+      const allowed = await canUsersCallInConversation(
+        userId,
+        toUserId,
+        conversationId
+      );
+      if (!allowed) return;
+
+      forwardToUser(toUserId, "call_accept", { callId, conversationId });
+    }
+  );
+
+  socket.on(
     "call_offer",
     async (payload: {
       callId: string;

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { useCallStore } from "../../store/useCallStore";
+import Avatar from "../ui/Avatar";
 
 interface ActiveCallOverlayProps {
   onEnd: () => void;
@@ -19,6 +20,7 @@ const ActiveCallOverlay: React.FC<ActiveCallOverlayProps> = ({ onEnd }) => {
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
     if (localVideoRef.current && localStream) {
@@ -29,6 +31,10 @@ const ActiveCallOverlay: React.FC<ActiveCallOverlayProps> = ({ onEnd }) => {
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream;
+    }
+    if (remoteAudioRef.current && remoteStream) {
+      remoteAudioRef.current.srcObject = remoteStream;
+      void remoteAudioRef.current.play().catch(() => {});
     }
   }, [remoteStream]);
 
@@ -46,10 +52,13 @@ const ActiveCallOverlay: React.FC<ActiveCallOverlayProps> = ({ onEnd }) => {
 
   if (!session) return null;
 
-  const isVideo = session.callType === "video" && !isVideoOff;
+  const isVideoCall = session.callType === "video";
+  const showLocalVideo = isVideoCall && !isVideoOff && localStream;
 
   return (
     <div className="call-overlay">
+      <audio ref={remoteAudioRef} autoPlay playsInline className="call-audio-remote" />
+
       <div className="call-overlay-header">
         <span>{session.remoteDisplayName}</span>
         <span className="call-overlay-status">
@@ -58,19 +67,25 @@ const ActiveCallOverlay: React.FC<ActiveCallOverlayProps> = ({ onEnd }) => {
       </div>
 
       <div className="call-overlay-video-area">
-        {remoteStream ? (
+        {isVideoCall && remoteStream ? (
           <video
             ref={remoteVideoRef}
             autoPlay
             playsInline
             className="call-video-remote"
           />
+        ) : remoteStream ? (
+          <div className="call-voice-avatar-wrap">
+            <Avatar name={session.remoteDisplayName} size="xl" />
+            <span className="call-voice-label">Voice call</span>
+          </div>
         ) : (
           <div className="call-video-placeholder">
-            <span>{session.remoteDisplayName}</span>
+            <Avatar name={session.remoteDisplayName} size="xl" />
+            <span>Connecting…</span>
           </div>
         )}
-        {isVideo && localStream && (
+        {showLocalVideo && (
           <video
             ref={localVideoRef}
             autoPlay
@@ -90,7 +105,7 @@ const ActiveCallOverlay: React.FC<ActiveCallOverlayProps> = ({ onEnd }) => {
         >
           {isMuted ? "🔇" : "🎤"}
         </button>
-        {session.callType === "video" && (
+        {isVideoCall && (
           <button
             type="button"
             className={`call-control-btn ${isVideoOff ? "active" : ""}`}
