@@ -229,6 +229,36 @@ input:focus, textarea:focus {
 .google-btn-error {
   color: var(--danger);
   font-size: 0.875rem;
+  margin-top: var(--spacing-sm);
+  line-height: 1.4;
+}
+.login-config-warning {
+  text-align: left;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  font-size: 0.875rem;
+}
+.login-config-warning strong {
+  display: block;
+  margin-bottom: var(--spacing-xs);
+  color: var(--danger);
+}
+.login-config-warning ul {
+  margin: var(--spacing-xs) 0;
+  padding-left: 1.25rem;
+}
+.login-config-warning code {
+  font-size: 0.8em;
+  background: var(--bg-hover);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+.login-config-note {
+  margin: var(--spacing-xs) 0 0;
+  color: var(--text-muted);
 }
 
 /* ─────────────────────────────────────────────────────────────

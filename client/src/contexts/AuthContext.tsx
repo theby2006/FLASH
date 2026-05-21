@@ -11,7 +11,12 @@ import {
   onAuthStateChanged,
 } from "firebase/auth";
 import type { User as FirebaseUser } from "firebase/auth";
-import { auth, googleProvider } from "../services/firebase";
+import {
+  auth,
+  googleProvider,
+  browserPopupRedirectResolver,
+} from "../services/firebase";
+import { isFirebaseConfigured } from "../utils/firebaseConfig";
 import { loginWithBackend } from "../services/authService";
 import type { User } from "../types";
 
@@ -35,7 +40,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [loading, setLoading] = useState(true);
 
   const signInWithGoogle = useCallback(async () => {
-    const result = await signInWithPopup(auth, googleProvider);
+    if (!isFirebaseConfigured()) {
+      throw new Error("Firebase client environment variables are not configured");
+    }
+    const result = await signInWithPopup(
+      auth,
+      googleProvider,
+      browserPopupRedirectResolver
+    );
     const token = await result.user.getIdToken();
     setIdToken(token);
     const user = await loginWithBackend();

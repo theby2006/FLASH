@@ -1,6 +1,10 @@
 import React, { useState } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import Spinner from "../ui/Spinner";
+import {
+  getFirebaseAuthErrorMessage,
+  isFirebaseConfigured,
+} from "../../utils/firebaseConfig";
 
 const GoogleSignInButton: React.FC = () => {
   const { signInWithGoogle } = useAuth();
@@ -9,11 +13,16 @@ const GoogleSignInButton: React.FC = () => {
 
   const handleClick = async () => {
     setError("");
+    if (!isFirebaseConfigured()) {
+      setError(getFirebaseAuthErrorMessage(new Error("not configured")));
+      return;
+    }
     setLoading(true);
     try {
       await signInWithGoogle();
-    } catch {
-      setError("Sign-in failed. Please try again.");
+    } catch (err) {
+      console.error("[Sign-in]", err);
+      setError(getFirebaseAuthErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -25,7 +34,7 @@ const GoogleSignInButton: React.FC = () => {
         id="google-signin-btn"
         className="google-btn"
         onClick={handleClick}
-        disabled={loading}
+        disabled={loading || !isFirebaseConfigured()}
         aria-label="Sign in with Google"
       >
         {loading ? (

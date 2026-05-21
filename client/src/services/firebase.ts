@@ -1,5 +1,12 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import {
+  getAuth,
+  GoogleAuthProvider,
+  browserPopupRedirectResolver,
+} from "firebase/auth";
+import { isFirebaseConfigured } from "../utils/firebaseConfig";
+
+export { browserPopupRedirectResolver };
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -9,6 +16,12 @@ const firebaseConfig = {
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
+
+if (!isFirebaseConfigured()) {
+  console.error(
+    "[FLASH] Firebase client config is incomplete. Update client/.env with values from Firebase Console → Project settings → Your apps → Web app."
+  );
+}
 
 const app = initializeApp(firebaseConfig);
 
