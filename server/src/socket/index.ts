@@ -19,6 +19,7 @@ export const initSocket = (io: Server) => {
 
       const token = socket.handshake.auth?.token as string;
       if (!token) return next(new Error("Unauthorized"));
+      if (!adminAuth) return next(new Error("Auth service unavailable"));
 
       const decoded = await adminAuth.verifyIdToken(token);
       socket.data.userId = decoded.uid;

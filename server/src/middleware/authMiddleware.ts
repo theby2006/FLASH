@@ -35,6 +35,14 @@ export const authMiddleware = async (
       return;
     }
 
+    if (!adminAuth) {
+      res.status(503).json({
+        success: false,
+        message: "Auth service unavailable: configure Firebase in server/.env",
+      });
+      return;
+    }
+
     const token = authHeader.split("Bearer ")[1];
     const decoded = await adminAuth.verifyIdToken(token);
 
