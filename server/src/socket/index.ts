@@ -14,7 +14,9 @@ import {
   trackOnlineUser,
   untrackOnlineUser,
   isUserOnline,
+  getOnlineUserIds,
 } from "./socketNotifier";
+import { agentDebugLog } from "../utils/agentDebugLog";
 
 export const initSocket = (io: Server) => {
   bindSocketNotifier(io);
@@ -34,7 +36,8 @@ export const initSocket = (io: Server) => {
         decoded.email ?? ""
       );
       next();
-    } catch {
+    } catch (err) {
+      console.error("[Socket] Auth failed:", err instanceof Error ? err.message : err);
       next(new Error("Unauthorized"));
     }
   });
@@ -54,7 +57,16 @@ export const initSocket = (io: Server) => {
       socket.join(m.conversationId);
     }
 
-    console.log(`[Socket] User connected: ${userId} (${memberships.length} chats)`);
+    const origin = socket.handshake.headers.origin ?? "unknown";
+    console.log(
+      `[Socket] User connected: ${userId} (${memberships.length} chats) from ${origin} | online: [${getOnlineUserIds().join(", ")}]`
+    );
+    agentDebugLog(
+      "socket/index.ts:connection",
+      "socket connected",
+      { userId, joinedRooms: memberships.length },
+      "H1"
+    );
 
     if (wasOffline) {
       await notifyFriendsUserOnline(userId);
@@ -66,7 +78,9 @@ export const initSocket = (io: Server) => {
 
     socket.on("disconnect", async () => {
       untrackOnlineUser(userId, socket.id);
-      console.log(`[Socket] User disconnected: ${userId}`);
+      console.log(
+        `[Socket] User disconnected: ${userId} | online: [${getOnlineUserIds().join(", ")}]`
+      );
       if (!isUserOnline(userId)) {
         await notifyFriendsUserOffline(userId);
       }

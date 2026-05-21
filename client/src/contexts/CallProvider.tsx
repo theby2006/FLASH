@@ -14,6 +14,7 @@ import { useIceServers } from "../hooks/useIceServers";
 import type { CallType } from "../types/call";
 import IncomingCallModal from "../components/call/IncomingCallModal";
 import ActiveCallOverlay from "../components/call/ActiveCallOverlay";
+import { agentDebugLog } from "../utils/agentDebugLog";
 
 interface CallContextValue {
   startCall: (
@@ -130,6 +131,7 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         socket.emit("call_end", {
           callId: s.callId,
           toUserId: s.remoteUserId,
+          conversationId: s.conversationId,
         });
       }
       activeCallIdRef.current = null;
@@ -160,6 +162,17 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 
       pc.oniceconnectionstatechange = () => {
         console.log("[Call] ICE connection:", pc.iceConnectionState);
+        agentDebugLog(
+          "CallProvider.tsx:ice",
+          "ice connection state",
+          {
+            callId,
+            iceState: pc.iceConnectionState,
+            connState: pc.connectionState,
+            iceServerCount: iceServersRef.current.length,
+          },
+          "H4"
+        );
         if (pc.iceConnectionState === "failed") {
           setError(
             "Could not connect media (network). Ensure TURN is enabled on the server."
@@ -235,6 +248,25 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
       });
     },
     [socket]
+  );
+
+  const applyRemoteOfferAndAnswer = useCallback(
+    async (pc: RTCPeerConnection) => {
+      const offer = pendingOfferRef.current;
+      if (!offer) return false;
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      pendingOfferRef.current = null;
+      await flushIceQueue(pc);
+      await sendAnswer(pc);
+      agentDebugLog(
+        "CallProvider.tsx:applyRemoteOffer",
+        "answer sent after offer",
+        { callId: useCallStore.getState().session?.callId },
+        "H2"
+      );
+      return true;
+    },
+    [sendAnswer, flushIceQueue]
   );
 
   const sendOffer = useCallback(
@@ -319,6 +351,12 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
           fromDisplayName: dbUser.displayName,
         },
         (res?: { ok: boolean; delivered?: boolean; message?: string }) => {
+          agentDebugLog(
+            "CallProvider.tsx:startCall",
+            "call_invite ack",
+            { callId, callType, remoteUserId, ack: res ?? null },
+            "H1"
+          );
           if (!res?.ok) {
             setError(
               res?.message ??
@@ -338,6 +376,16 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         );
       } catch (err) {
         console.error(err);
+        agentDebugLog(
+          "CallProvider.tsx:startCall",
+          "caller getUserMedia failed",
+          {
+            callId,
+            callType,
+            error: err instanceof Error ? err.name : "unknown",
+          },
+          "H3"
+        );
         setError("Could not access microphone or camera");
         endCall(true);
       } finally {
@@ -365,12 +413,6 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     activeCallIdRef.current = s.callId;
     setError(null);
 
-    socket.emit("call_accept", {
-      callId: s.callId,
-      conversationId: s.conversationId,
-      toUserId: s.remoteUserId,
-    });
-
     try {
       const stream = await getMediaStream(s.callType);
       setLocalStream(stream);
@@ -382,15 +424,31 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
       );
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
-      const offer = pendingOfferRef.current;
-      if (offer) {
-        await pc.setRemoteDescription(new RTCSessionDescription(offer));
-        pendingOfferRef.current = null;
-        await flushIceQueue(pc);
-        await sendAnswer(pc);
-      }
+      socket.emit("call_accept", {
+        callId: s.callId,
+        conversationId: s.conversationId,
+        toUserId: s.remoteUserId,
+      });
+      agentDebugLog(
+        "CallProvider.tsx:acceptCall",
+        "call_accept emitted after peer ready",
+        { callId: s.callId, callType: s.callType },
+        "H5"
+      );
+
+      await applyRemoteOfferAndAnswer(pc);
     } catch (err) {
       console.error(err);
+      agentDebugLog(
+        "CallProvider.tsx:acceptCall",
+        "callee getUserMedia failed",
+        {
+          callId: s.callId,
+          callType: s.callType,
+          error: err instanceof Error ? err.name : "unknown",
+        },
+        "H3"
+      );
       setError("Could not access microphone or camera");
       endCall(false);
     }
@@ -401,8 +459,7 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     setStatus,
     setError,
     setLocalStream,
-    sendAnswer,
-    flushIceQueue,
+    applyRemoteOfferAndAnswer,
     endCall,
   ]);
 
@@ -414,11 +471,13 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         socket.emit("call_end", {
           callId: s.callId,
           toUserId: s.remoteUserId,
+          conversationId: s.conversationId,
         });
       } else {
         socket.emit("call_reject", {
           callId: s.callId,
           toUserId: s.remoteUserId,
+          conversationId: s.conversationId,
         });
       }
     }
@@ -486,6 +545,7 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         socket.emit("call_reject", {
           callId: payload.callId,
           toUserId: payload.fromUserId,
+          conversationId: payload.conversationId,
           reason: "busy",
         });
         return;
@@ -500,6 +560,16 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         isInitiator: false,
       });
       setStatus("incoming");
+      agentDebugLog(
+        "CallProvider.tsx:onIncoming",
+        "incoming call UI set",
+        {
+          callId: payload.callId,
+          callType: payload.callType,
+          fromUserId: payload.fromUserId,
+        },
+        "H1"
+      );
     };
 
     const onAccept = async (payload: {
@@ -543,14 +613,21 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 
       pendingOfferRef.current = payload.sdp;
 
+      agentDebugLog(
+        "CallProvider.tsx:onOffer",
+        "offer received",
+        {
+          callId: payload.callId,
+          hasPeer: !!peerRef.current,
+          status: state.status,
+          hasPendingOffer: !!pendingOfferRef.current,
+        },
+        "H5"
+      );
+
       if (peerRef.current && state.status === "connecting") {
         try {
-          await peerRef.current.setRemoteDescription(
-            new RTCSessionDescription(payload.sdp)
-          );
-          pendingOfferRef.current = null;
-          await flushIceQueue(peerRef.current);
-          await sendAnswer(peerRef.current);
+          await applyRemoteOfferAndAnswer(peerRef.current);
         } catch (err) {
           console.error(err);
           setError("Failed to connect call");
@@ -662,6 +739,7 @@ const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     setError,
     sendAnswer,
     sendOffer,
+    applyRemoteOfferAndAnswer,
     flushIceQueue,
     endCall,
   ]);

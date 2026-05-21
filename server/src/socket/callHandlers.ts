@@ -1,15 +1,16 @@
 import { Server, Socket } from "socket.io";
 import { prisma } from "../config/db";
 // Calls: DB record first, then Socket.io signaling to peer
-import { emitToUser } from "./socketNotifier";
 import {
   recordCallInvite,
   updateCallStatus,
 } from "../services/callService";
 import {
   deliverCallIncoming,
+  deliverCallSignal,
   resolveCalleeInConversation,
 } from "./callDelivery";
+import { agentDebugLog } from "../utils/agentDebugLog";
 
 export type CallType = "audio" | "video";
 
@@ -58,12 +59,19 @@ export const registerCallHandlers = (
   socket: Socket,
   userId: string
 ) => {
-  const forwardToUser = (
-    targetUserId: string,
+  const signalToPeer = async (
+    conversationId: string,
+    hintedPeerId: string,
     event: string,
     payload: Record<string, unknown>
-  ): boolean => {
-    return emitToUser(targetUserId, event, { ...payload, fromUserId: userId });
+  ) => {
+    const peerId =
+      (await resolveCalleeInConversation(
+        conversationId,
+        userId,
+        hintedPeerId
+      )) ?? hintedPeerId;
+    return deliverCallSignal(io, userId, peerId, conversationId, event, payload);
   };
 
   socket.on(
@@ -136,6 +144,22 @@ export const registerCallHandlers = (
         incomingPayload
       );
 
+      const deliveryDiag = {
+        callId,
+        callerId: userId,
+        calleeId,
+        hintedToUserId: toUserId,
+        callType,
+        delivered,
+      };
+      console.log("[Call] invite delivery:", JSON.stringify(deliveryDiag));
+      agentDebugLog(
+        "callHandlers.ts:call_invite",
+        "invite delivery result",
+        deliveryDiag,
+        "H1"
+      );
+
       if (!delivered) {
         await updateCallStatus(callId, "MISSED");
         socket.emit("call_unreachable", {
@@ -176,7 +200,16 @@ export const registerCallHandlers = (
       if (!allowed) return;
 
       await updateCallStatus(callId, "ACCEPTED");
-      forwardToUser(peerId, "call_accept", { callId, conversationId });
+      const acceptFwd = await signalToPeer(conversationId, toUserId, "call_accept", {
+        callId,
+        conversationId,
+      });
+      agentDebugLog(
+        "callHandlers.ts:call_accept",
+        "call_accept forwarded",
+        { callId, fromUserId: userId, peerId, acceptFwd },
+        "H2"
+      );
     }
   );
 
@@ -189,16 +222,33 @@ export const registerCallHandlers = (
       sdp: unknown;
     }) => {
       const { callId, conversationId, toUserId, sdp } = payload ?? {};
-      if (!callId || !toUserId || !sdp) return;
+      if (!callId || !toUserId || !sdp || !conversationId) return;
+
+      const peerId =
+        (await resolveCalleeInConversation(
+          conversationId,
+          userId,
+          toUserId
+        )) ?? toUserId;
 
       const allowed = await canUsersCallInConversation(
         userId,
-        toUserId,
+        peerId,
         conversationId
       );
       if (!allowed) return;
 
-      forwardToUser(toUserId, "call_offer", { callId, conversationId, sdp });
+      const offerFwd = await signalToPeer(conversationId, toUserId, "call_offer", {
+        callId,
+        conversationId,
+        sdp,
+      });
+      agentDebugLog(
+        "callHandlers.ts:call_offer",
+        "call_offer forwarded",
+        { callId, fromUserId: userId, peerId, offerFwd },
+        "H2"
+      );
     }
   );
 
@@ -211,16 +261,34 @@ export const registerCallHandlers = (
       sdp: unknown;
     }) => {
       const { callId, conversationId, toUserId, sdp } = payload ?? {};
-      if (!callId || !toUserId || !sdp) return;
+      if (!callId || !toUserId || !sdp || !conversationId) return;
+
+      const peerId =
+        (await resolveCalleeInConversation(
+          conversationId,
+          userId,
+          toUserId
+        )) ?? toUserId;
 
       const allowed = await canUsersCallInConversation(
         userId,
-        toUserId,
+        peerId,
         conversationId
       );
       if (!allowed) return;
 
-      forwardToUser(toUserId, "call_answer", { callId, conversationId, sdp });
+      const answerFwd = await signalToPeer(
+        conversationId,
+        toUserId,
+        "call_answer",
+        { callId, conversationId, sdp }
+      );
+      agentDebugLog(
+        "callHandlers.ts:call_answer",
+        "call_answer forwarded",
+        { callId, fromUserId: userId, peerId, answerFwd },
+        "H2"
+      );
     }
   );
 
@@ -233,16 +301,9 @@ export const registerCallHandlers = (
       candidate: unknown;
     }) => {
       const { callId, conversationId, toUserId, candidate } = payload ?? {};
-      if (!callId || !toUserId || !candidate) return;
+      if (!callId || !toUserId || !candidate || !conversationId) return;
 
-      const allowed = await canUsersCallInConversation(
-        userId,
-        toUserId,
-        conversationId
-      );
-      if (!allowed) return;
-
-      forwardToUser(toUserId, "call_ice_candidate", {
+      await signalToPeer(conversationId, toUserId, "call_ice_candidate", {
         callId,
         conversationId,
         candidate,
@@ -253,31 +314,38 @@ export const registerCallHandlers = (
   socket.on(
     "call_reject",
     async (payload: { callId: string; toUserId: string; reason?: string }) => {
-      const { callId, toUserId, reason } = payload ?? {};
+      const { callId, toUserId, reason, conversationId } = payload as {
+        callId: string;
+        toUserId: string;
+        reason?: string;
+        conversationId?: string;
+      };
       if (!callId || !toUserId) return;
       await updateCallStatus(callId, reason === "busy" ? "FAILED" : "REJECTED");
-      if (reason === "busy") {
-        forwardToUser(toUserId, "call_busy", { callId });
-      } else {
-        forwardToUser(toUserId, "call_reject", { callId });
+      if (conversationId) {
+        const event = reason === "busy" ? "call_busy" : "call_reject";
+        await signalToPeer(conversationId, toUserId, event, { callId });
       }
     }
   );
 
   socket.on(
     "call_end",
-    async (payload: { callId: string; toUserId: string }) => {
-      const { callId, toUserId } = payload ?? {};
+    async (payload: { callId: string; toUserId: string; conversationId?: string }) => {
+      const { callId, toUserId, conversationId } = payload ?? {};
       if (!callId || !toUserId) return;
       const existing = await prisma.callSession.findUnique({
         where: { id: callId },
-        select: { status: true },
+        select: { status: true, conversationId: true },
       });
       await updateCallStatus(
         callId,
         existing?.status === "RINGING" ? "MISSED" : "ENDED"
       );
-      forwardToUser(toUserId, "call_end", { callId });
+      const convId = conversationId ?? existing?.conversationId;
+      if (convId) {
+        await signalToPeer(convId, toUserId, "call_end", { callId });
+      }
     }
   );
 

@@ -7,6 +7,8 @@ import React, {
 } from "react";
 import {
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut as firebaseSignOut,
   onAuthStateChanged,
 } from "firebase/auth";
@@ -18,6 +20,8 @@ import {
 } from "../services/firebase";
 import { isFirebaseConfigured } from "../utils/firebaseConfig";
 import { loginWithBackend } from "../services/authService";
+import { agentDebugLog } from "../utils/agentDebugLog";
+import { shouldUseRedirectSignIn } from "../utils/deviceAuth";
 import type { User } from "../types";
 
 interface AuthContextType {
@@ -43,6 +47,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     if (!isFirebaseConfigured()) {
       throw new Error("Firebase client environment variables are not configured");
     }
+    if (shouldUseRedirectSignIn()) {
+      agentDebugLog(
+        "AuthContext.tsx:signInWithGoogle",
+        "using redirect sign-in",
+        { host: window.location.host },
+        "H8"
+      );
+      await signInWithRedirect(auth, googleProvider);
+      return;
+    }
     const result = await signInWithPopup(
       auth,
       googleProvider,
@@ -61,6 +75,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   useEffect(() => {
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (!result?.user) return;
+        agentDebugLog(
+          "AuthContext.tsx:getRedirectResult",
+          "redirect sign-in completed",
+          { uid: result.user.uid, host: window.location.host },
+          "H8"
+        );
+        const token = await result.user.getIdToken();
+        setIdToken(token);
+        const user = await loginWithBackend();
+        setDbUser(user);
+      })
+      .catch((err) => {
+        console.error("[Auth] Redirect sign-in failed:", err);
+        agentDebugLog(
+          "AuthContext.tsx:getRedirectResult",
+          "redirect sign-in failed",
+          { message: err instanceof Error ? err.message : String(err) },
+          "H8"
+        );
+      });
+  }, []);
+
+  useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setFirebaseUser(user);
       if (user) {
@@ -69,8 +109,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         try {
           const dbUserData = await loginWithBackend();
           setDbUser(dbUserData);
-        } catch {
-          console.error("Failed to sync user with backend");
+        } catch (err) {
+          console.error("Failed to sync user with backend", err);
+          agentDebugLog(
+            "AuthContext.tsx:onAuthStateChanged",
+            "loginWithBackend failed",
+            {
+              message: err instanceof Error ? err.message : String(err),
+              host: window.location.host,
+            },
+            "H8"
+          );
         }
       } else {
         setDbUser(null);

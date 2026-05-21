@@ -43,7 +43,17 @@ interface ChatStore {
 
 export const useChatStore = create<ChatStore>((set) => ({
   conversations: [],
-  setConversations: (convs) => set({ conversations: convs }),
+  setConversations: (convs) =>
+    set((s) => {
+      const onlineUsers = new Set(s.onlineUsers);
+      for (const conv of convs) {
+        for (const member of conv.members) {
+          if (member.user.isOnline) onlineUsers.add(member.userId);
+          else onlineUsers.delete(member.userId);
+        }
+      }
+      return { conversations: convs, onlineUsers };
+    }),
   addConversation: (conv) =>
     set((s) => ({
       conversations: [conv, ...s.conversations.filter((c) => c.id !== conv.id)],
@@ -143,7 +153,15 @@ export const useChatStore = create<ChatStore>((set) => ({
     }),
 
   contacts: [],
-  setContacts: (users) => set({ contacts: users }),
+  setContacts: (users) =>
+    set((s) => {
+      const onlineUsers = new Set(s.onlineUsers);
+      for (const user of users) {
+        if (user.isOnline) onlineUsers.add(user.id);
+        else onlineUsers.delete(user.id);
+      }
+      return { contacts: users, onlineUsers };
+    }),
 
   pendingRequests: [],
   setPendingRequests: (reqs) => set({ pendingRequests: reqs }),

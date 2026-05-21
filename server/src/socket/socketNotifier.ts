@@ -40,3 +40,6 @@ export const emitToUser = (
   sockets.forEach((socketId) => io!.to(socketId).emit(event, payload));
   return true;
 };
+
+export const getOnlineUserIds = (): string[] =>
+  Array.from(onlineUsers.keys());

@@ -186,6 +186,28 @@ input:focus, textarea:focus {
   font-size: 1.75rem;
   margin-bottom: var(--spacing-xs);
 }
+.lan-dev-banner {
+  margin: var(--spacing-md) 0;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  text-align: left;
+}
+.lan-dev-banner code {
+  font-size: 0.75rem;
+  word-break: break-all;
+}
+.lan-dev-banner-hint {
+  margin-top: var(--spacing-xs);
+  opacity: 0.9;
+}
+.sidebar .lan-dev-banner {
+  margin: var(--spacing-sm);
+}
+
 .login-subtitle {
   color: var(--text-secondary);
   margin-bottom: 2.5rem;

@@ -4,6 +4,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { useSocketContext } from "../../contexts/SocketContext";
 import { useCall } from "../../contexts/CallProvider";
 import { useCallStore } from "../../store/useCallStore";
+import { useChatStore } from "../../store/useChatStore";
 import type { CallType } from "../../types/call";
 
 interface CallButtonsProps {
@@ -17,6 +18,7 @@ const CallButtons: React.FC<CallButtonsProps> = ({ conversation }) => {
   const status = useCallStore((s) => s.status);
   const error = useCallStore((s) => s.error);
   const setError = useCallStore((s) => s.setError);
+  const onlineUsers = useChatStore((s) => s.onlineUsers);
 
   const handleCall = useCallback(
     (
@@ -27,7 +29,7 @@ const CallButtons: React.FC<CallButtonsProps> = ({ conversation }) => {
       e.stopPropagation();
 
       if (!connected) {
-        setError("Not connected — wait for the green connection indicator");
+        setError("Not connected — wait for Live in the sidebar");
         return;
       }
 
@@ -38,6 +40,13 @@ const CallButtons: React.FC<CallButtonsProps> = ({ conversation }) => {
       );
       if (!otherMember || !dbUser) return;
 
+      if (!onlineUsers.has(otherMember.userId)) {
+        setError(
+          "Friend is offline — they must open FLASH on their device and show Live"
+        );
+        return;
+      }
+
       startCall(
         conversation.id,
         otherMember.userId,
@@ -45,7 +54,7 @@ const CallButtons: React.FC<CallButtonsProps> = ({ conversation }) => {
         callType
       );
     },
-    [connected, status, conversation, dbUser, startCall, setError]
+    [connected, status, conversation, dbUser, onlineUsers, startCall, setError]
   );
 
   if (conversation.isGroup || !dbUser) return null;
@@ -54,6 +63,8 @@ const CallButtons: React.FC<CallButtonsProps> = ({ conversation }) => {
   if (!otherMember) return null;
 
   const busy = status !== "idle";
+  const peerOnline = onlineUsers.has(otherMember.userId);
+  const canCall = connected && peerOnline && !busy;
 
   return (
     <div className="call-buttons">
@@ -65,15 +76,17 @@ const CallButtons: React.FC<CallButtonsProps> = ({ conversation }) => {
       <button
         type="button"
         className="chat-header-call-btn"
-        disabled={busy || !connected}
+        disabled={!canCall}
         onClick={(e) => handleCall(e, "audio")}
         aria-label="Voice call"
         title={
           !connected
-            ? "Waiting for connection…"
-            : busy
-              ? "Finish or cancel the current call first"
-              : "Voice call"
+            ? "Waiting for Live connection…"
+            : !peerOnline
+              ? "Friend is offline"
+              : busy
+                ? "Finish or cancel the current call first"
+                : "Voice call"
         }
       >
         <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden>
@@ -83,15 +96,17 @@ const CallButtons: React.FC<CallButtonsProps> = ({ conversation }) => {
       <button
         type="button"
         className="chat-header-call-btn"
-        disabled={busy || !connected}
+        disabled={!canCall}
         onClick={(e) => handleCall(e, "video")}
         aria-label="Video call"
         title={
           !connected
-            ? "Waiting for connection…"
-            : busy
-              ? "Finish or cancel the current call first"
-              : "Video call"
+            ? "Waiting for Live connection…"
+            : !peerOnline
+              ? "Friend is offline"
+              : busy
+                ? "Finish or cancel the current call first"
+                : "Video call"
         }
       >
         <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden>

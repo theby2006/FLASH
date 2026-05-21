@@ -1,5 +1,6 @@
 import { Response } from "express";
 import { prisma } from "../config/db";
+import { isUserOnline } from "../socket/socketNotifier";
 import { AuthRequest } from "../types";
 import { emitToUser } from "../socket/socketNotifier";
 
@@ -207,6 +208,9 @@ export const getContacts = async (
     },
   });
 
-  const contacts = friendships.map((f) => f.friend);
+  const contacts = friendships.map((f) => ({
+    ...f.friend,
+    isOnline: isUserOnline(f.friend.id),
+  }));
   res.json({ success: true, data: contacts });
 };

@@ -5,7 +5,8 @@ import React, {
   useState,
 } from "react";
 import { io, Socket } from "socket.io-client";
-import { SOCKET_URL } from "../utils/constants";
+import { API_BASE_URL, SOCKET_URL } from "../utils/constants";
+import { agentDebugLog } from "../utils/agentDebugLog";
 import { useAuthContext } from "./AuthContext";
 import { useChatStore } from "../store/useChatStore";
 import type { Message } from "../types";
@@ -28,7 +29,7 @@ const SocketContext = createContext<SocketContextType>({
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const { idToken } = useAuthContext();
+  const { idToken, dbUser } = useAuthContext();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [connected, setConnected] = useState(false);
   const [socketError, setSocketError] = useState<string | null>(null);
@@ -43,10 +44,11 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
       return;
     }
 
-    const s = io(SOCKET_URL, {
+    const socketTarget = SOCKET_URL ?? window.location.origin;
+    const s = io(socketTarget, {
       path: "/socket.io",
       auth: { token: idToken },
-      transports: ["websocket", "polling"],
+      transports: ["polling", "websocket"],
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
@@ -61,6 +63,16 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
       setSocketError(null);
       setRefreshSignal((n) => n + 1);
       console.log("[Socket] Connected");
+      agentDebugLog(
+        "SocketContext.tsx:onConnect",
+        "client socket connected",
+        {
+          dbUserId: dbUser?.id ?? null,
+          apiBase: API_BASE_URL || "(vite proxy)",
+          socketTarget: SOCKET_URL ?? window.location.origin,
+        },
+        "H1"
+      );
     };
 
     s.on("connect", onConnect);
@@ -71,7 +83,18 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
     s.on("connect_error", (err) => {
       setConnected(false);
       setSocketError(err.message);
-      console.error("[Socket] Connect error:", err.message);
+      console.error("[Socket] Connect error:", err.message, "target:", socketTarget);
+      agentDebugLog(
+        "SocketContext.tsx:connect_error",
+        "client socket connect_error",
+        {
+          dbUserId: dbUser?.id ?? null,
+          apiBase: API_BASE_URL || "(vite proxy)",
+          socketTarget,
+          message: err.message,
+        },
+        "H1"
+      );
     });
 
     s.on(
@@ -130,7 +153,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
       setSocket(null);
       setConnected(false);
     };
-  }, [idToken, setUserOnline, setUserOffline, markMessagesReadByIds]);
+  }, [idToken, dbUser?.id, setUserOnline, setUserOffline, markMessagesReadByIds]);
 
   return (
     <SocketContext.Provider

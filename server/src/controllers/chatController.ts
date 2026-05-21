@@ -1,5 +1,6 @@
 import { Response } from "express";
 import { prisma } from "../config/db";
+import { isUserOnline } from "../socket/socketNotifier";
 import { AuthRequest } from "../types";
 
 // GET /api/chats
@@ -62,6 +63,13 @@ export const getConversations = async (
   const conversations = memberships
     .map((m) => ({
       ...m.conversation,
+      members: m.conversation.members.map((member) => ({
+        ...member,
+        user: {
+          ...member.user,
+          isOnline: isUserOnline(member.userId),
+        },
+      })),
       lastMessage: m.conversation.messages[0] ?? null,
       unreadCount: unreadMap.get(m.conversation.id) ?? 0,
       messages: undefined,

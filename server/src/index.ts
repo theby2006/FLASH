@@ -14,6 +14,7 @@ import userRoutes from "./routes/userRoutes";
 import chatRoutes from "./routes/chatRoutes";
 import groupRoutes from "./routes/groupRoutes";
 import callRoutes from "./routes/callRoutes";
+import debugRoutes from "./routes/debugRoutes";
 import { errorHandler } from "./middleware/errorHandler";
 import { initSocket } from "./socket";
 import { corsOptions } from "./config/cors";
@@ -40,6 +41,10 @@ app.use("/api/chats", chatRoutes);
 app.use("/api/groups", groupRoutes);
 app.use("/api/calls", callRoutes);
 
+if (process.env.NODE_ENV !== "production") {
+  app.use("/api/debug", debugRoutes);
+}
+
 // Health check
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
@@ -54,6 +59,16 @@ initSocket(io);
 // ── Start server ───────────────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT ?? "5000");
 const HOST = process.env.HOST ?? "0.0.0.0";
+httpServer.on("error", (err: NodeJS.ErrnoException) => {
+  if (err.code === "EADDRINUSE") {
+    console.error(
+      `[Server] Port ${PORT} is already in use. Run: npm run dev:kill`
+    );
+    process.exit(1);
+  }
+  throw err;
+});
+
 httpServer.listen(PORT, HOST, () => {
   console.log(`⚡ FLASH server running on http://${HOST}:${PORT}`);
 });

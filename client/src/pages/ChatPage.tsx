@@ -6,6 +6,7 @@ import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import { useChatStore } from "../store/useChatStore";
 import ContactList from "../components/contacts/ContactList";
 import ConnectionStatus from "../components/ui/ConnectionStatus";
+import LanDevBanner from "../components/ui/LanDevBanner";
 import SearchBar from "../components/contacts/SearchBar";
 import ChatWindow from "../components/chat/ChatWindow";
 import GroupList from "../components/groups/GroupList";
@@ -67,6 +68,8 @@ const ChatPage: React.FC = () => {
             </svg>
           </button>
         </header>
+
+        <LanDevBanner />
 
         <div className="sidebar-search">
           <SearchBar />

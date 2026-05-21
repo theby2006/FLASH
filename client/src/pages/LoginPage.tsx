@@ -2,6 +2,7 @@ import React from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import GoogleSignInButton from "../components/auth/GoogleSignInButton";
+import LanDevBanner from "../components/ui/LanDevBanner";
 import Spinner from "../components/ui/Spinner";
 import {
   getFirebaseConfigIssues,
@@ -53,6 +54,8 @@ const LoginPage: React.FC = () => {
             </p>
           </div>
         )}
+
+        <LanDevBanner />
 
         <div className="login-action">
           <GoogleSignInButton />

@@ -11,14 +11,19 @@ function lanBackendOrigin(): string | null {
 
 const lanApi = lanBackendOrigin();
 
-/** On phone/tablet (LAN IP), talk to backend :5001 directly — Vite WS proxy is unreliable */
-export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ??
-  (lanApi ?? (isDev ? "" : "http://localhost:5001"));
+const envApi = import.meta.env.VITE_API_BASE_URL?.trim() || undefined;
+const envSocket = import.meta.env.VITE_SOCKET_URL?.trim() || undefined;
 
+/**
+ * LAN hostname wins over VITE_* — never use localhost:5001 from .env on a phone
+ * opened at http://192.168.x.x:5173 (that would target the phone itself).
+ */
+export const API_BASE_URL =
+  lanApi ?? envApi ?? (isDev ? "" : "http://localhost:5001");
+
+/** undefined = same-origin + Vite /socket.io proxy on localhost dev */
 export const SOCKET_URL: string | undefined =
-  import.meta.env.VITE_SOCKET_URL ||
-  (lanApi ?? (isDev ? undefined : "http://localhost:5001"));
+  lanApi ?? envSocket ?? (isDev ? undefined : "http://localhost:5001");
 
 export const MESSAGE_LIMIT = 30;
 
@@ -50,7 +55,7 @@ function buildFallbackIceServers(): RTCIceServer[] {
   const turnCred = import.meta.env.VITE_TURN_CREDENTIAL;
   if (turnUrl && turnUser && turnCred) {
     servers.push({
-      urls: turnUrl.split(",").map((u) => u.trim()),
+      urls: turnUrl.split(",").map((u: string) => u.trim()),
       username: turnUser,
       credential: turnCred,
     });
