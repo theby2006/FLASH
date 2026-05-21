@@ -1,12 +1,17 @@
 import { Server } from "socket.io";
 import { adminAuth, isFirebaseConfigured } from "../config/firebase";
 import { registerChatHandlers } from "./chatHandlers";
-import { registerPresenceHandlers } from "./presenceHandlers";
+import {
+  registerPresenceHandlers,
+  notifyFriendsUserOnline,
+  notifyFriendsUserOffline,
+} from "./presenceHandlers";
 import { registerCallHandlers } from "./callHandlers";
 import {
   bindSocketNotifier,
   trackOnlineUser,
   untrackOnlineUser,
+  isUserOnline,
 } from "./socketNotifier";
 
 export const initSocket = (io: Server) => {
@@ -20,7 +25,6 @@ export const initSocket = (io: Server) => {
 
       const token = socket.handshake.auth?.token as string;
       if (!token) return next(new Error("Unauthorized"));
-      if (!adminAuth) return next(new Error("Auth service unavailable"));
 
       const decoded = await adminAuth.verifyIdToken(token);
       socket.data.userId = decoded.uid;
@@ -30,20 +34,28 @@ export const initSocket = (io: Server) => {
     }
   });
 
-  io.on("connection", (socket) => {
+  io.on("connection", async (socket) => {
     const userId = socket.data.userId as string;
     if (!userId) return;
 
+    const wasOffline = !isUserOnline(userId);
     trackOnlineUser(userId, socket.id);
     console.log(`[Socket] User connected: ${userId}`);
 
+    if (wasOffline) {
+      await notifyFriendsUserOnline(userId);
+    }
+
+    await registerPresenceHandlers(io, socket, userId);
     registerChatHandlers(io, socket, userId);
-    registerPresenceHandlers(io, socket, userId);
     registerCallHandlers(io, socket, userId);
 
-    socket.on("disconnect", () => {
-      untrackOnlineUser(userId);
+    socket.on("disconnect", async () => {
+      untrackOnlineUser(userId, socket.id);
       console.log(`[Socket] User disconnected: ${userId}`);
+      if (!isUserOnline(userId)) {
+        await notifyFriendsUserOffline(userId);
+      }
     });
   });
 };

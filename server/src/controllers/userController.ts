@@ -158,6 +158,29 @@ export const respondToRequest = async (
         skipDuplicates: true,
       }),
     ]);
+
+    const [accepter, sender] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, email: true, displayName: true, photoURL: true },
+      }),
+      prisma.user.findUnique({
+        where: { id: friendRequest.senderId },
+        select: { id: true, email: true, displayName: true, photoURL: true },
+      }),
+    ]);
+    if (accepter) {
+      emitToUser(friendRequest.senderId, "friend_accepted", {
+        requestId: id,
+        contact: accepter,
+      });
+    }
+    if (sender) {
+      emitToUser(userId, "friend_accepted", {
+        requestId: id,
+        contact: sender,
+      });
+    }
   } else {
     await prisma.friendRequest.update({
       where: { id },

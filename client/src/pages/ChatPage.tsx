@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
@@ -18,6 +18,18 @@ const ChatPage: React.FC = () => {
     useChatStore();
   const [showGroupInfo, setShowGroupInfo] = useState(false);
   const { connected } = useAutoRefresh();
+
+  useEffect(() => {
+    const totalUnread = conversations.reduce(
+      (sum, c) => sum + (c.unreadCount ?? 0),
+      0
+    );
+    document.title =
+      totalUnread > 0 ? `(${totalUnread}) FLASH — Chat` : "FLASH — Chat";
+    return () => {
+      document.title = "FLASH — Chat";
+    };
+  }, [conversations]);
 
   if (loading) {
     return (

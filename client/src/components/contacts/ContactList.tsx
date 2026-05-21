@@ -19,7 +19,7 @@ const ContactList: React.FC<ContactListProps> = ({ onSelectConversation }) => {
     addConversation,
     onlineUsers,
   } = useChatStore();
-  const { pendingRequests } = useFriendRequests();
+  const { pendingRequests, acceptRequest, rejectRequest } = useFriendRequests();
 
   const handleSelect = (id: string) => {
     setActiveConversationId(id);
@@ -53,7 +53,12 @@ const ContactList: React.FC<ContactListProps> = ({ onSelectConversation }) => {
             Requests ({pendingRequests.length})
           </p>
           {pendingRequests.map((req) => (
-            <FriendRequestCard key={req.id} request={req} />
+            <FriendRequestCard
+              key={req.id}
+              request={req}
+              onAccept={acceptRequest}
+              onReject={rejectRequest}
+            />
           ))}
         </div>
       )}

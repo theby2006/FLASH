@@ -70,11 +70,25 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
 
     s.on(
       "user_online",
-      ({ userId }: { userId: string }) => setUserOnline(userId)
+      ({
+        userId,
+        lastSeen,
+      }: {
+        userId: string;
+        isOnline?: boolean;
+        lastSeen?: string;
+      }) => setUserOnline(userId, lastSeen)
     );
     s.on(
       "user_offline",
-      ({ userId }: { userId: string }) => setUserOffline(userId)
+      ({
+        userId,
+        lastSeen,
+      }: {
+        userId: string;
+        isOnline?: boolean;
+        lastSeen?: string;
+      }) => setUserOffline(userId, lastSeen)
     );
     s.on(
       "messages_read",

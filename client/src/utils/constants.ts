@@ -14,8 +14,11 @@ export const MESSAGE_LIMIT = 30;
 
 export const TYPING_DEBOUNCE_MS = 1500;
 
-/** Poll sidebar + active chat as backup to WebSocket (ms) */
-export const AUTO_REFRESH_INTERVAL_MS = 30_000;
+/** Poll when socket is connected (backup sync, ms) */
+export const AUTO_REFRESH_INTERVAL_CONNECTED_MS = 45_000;
+
+/** Poll more often when socket is down (ms) */
+export const AUTO_REFRESH_INTERVAL_DISCONNECTED_MS = 10_000;
 
 /** Debounce refresh when tab becomes visible again */
 export const VISIBILITY_REFRESH_DEBOUNCE_MS = 500;

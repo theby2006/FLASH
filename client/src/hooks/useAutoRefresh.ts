@@ -4,7 +4,8 @@ import { useChatStore } from "../store/useChatStore";
 import { getConversations, getMessages } from "../services/chatService";
 import { getContacts, getPendingRequests } from "../services/userService";
 import {
-  AUTO_REFRESH_INTERVAL_MS,
+  AUTO_REFRESH_INTERVAL_CONNECTED_MS,
+  AUTO_REFRESH_INTERVAL_DISCONNECTED_MS,
   VISIBILITY_REFRESH_DEBOUNCE_MS,
 } from "../utils/constants";
 
@@ -60,15 +61,15 @@ export const useAutoRefresh = () => {
     clearUnread(activeConversationId);
   }, [socket, activeConversationId, clearUnread]);
 
-  // Initial + interval
+  // Initial + interval (faster poll when socket disconnected)
   useEffect(() => {
     refreshAll();
-    const intervalId = window.setInterval(
-      refreshAll,
-      AUTO_REFRESH_INTERVAL_MS
-    );
+    const ms = connected
+      ? AUTO_REFRESH_INTERVAL_CONNECTED_MS
+      : AUTO_REFRESH_INTERVAL_DISCONNECTED_MS;
+    const intervalId = window.setInterval(refreshAll, ms);
     return () => window.clearInterval(intervalId);
-  }, [refreshAll]);
+  }, [refreshAll, connected]);
 
   // After socket reconnect
   useEffect(() => {

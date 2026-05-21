@@ -32,8 +32,9 @@ interface ChatStore {
   removePendingRequest: (requestId: string) => void;
 
   onlineUsers: Set<string>;
-  setUserOnline: (userId: string) => void;
-  setUserOffline: (userId: string) => void;
+  lastSeenByUser: Record<string, string>;
+  setUserOnline: (userId: string, lastSeen?: string) => void;
+  setUserOffline: (userId: string, lastSeen?: string) => void;
 
   typingUsers: Record<string, { userId: string; displayName: string }[]>;
   setTyping: (convId: string, userId: string, displayName: string) => void;
@@ -149,13 +150,24 @@ export const useChatStore = create<ChatStore>((set) => ({
     })),
 
   onlineUsers: new Set(),
-  setUserOnline: (userId) =>
-    set((s) => ({ onlineUsers: new Set([...s.onlineUsers, userId]) })),
-  setUserOffline: (userId) =>
+  lastSeenByUser: {},
+  setUserOnline: (userId, lastSeen) =>
+    set((s) => ({
+      onlineUsers: new Set([...s.onlineUsers, userId]),
+      lastSeenByUser: lastSeen
+        ? { ...s.lastSeenByUser, [userId]: lastSeen }
+        : s.lastSeenByUser,
+    })),
+  setUserOffline: (userId, lastSeen) =>
     set((s) => {
       const next = new Set(s.onlineUsers);
       next.delete(userId);
-      return { onlineUsers: next };
+      return {
+        onlineUsers: next,
+        lastSeenByUser: lastSeen
+          ? { ...s.lastSeenByUser, [userId]: lastSeen }
+          : s.lastSeenByUser,
+      };
     }),
 
   typingUsers: {},

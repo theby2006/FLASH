@@ -1,6 +1,7 @@
 import { Server, Socket } from "socket.io";
 import { prisma } from "../config/db";
 import { saveMessage, markMessagesRead } from "../services/messageService";
+import { emitToUser } from "./socketNotifier";
 
 export const registerChatHandlers = (
   io: Server,
@@ -44,8 +45,12 @@ export const registerChatHandlers = (
 
       const message = await saveMessage(conversationId, userId, content, type);
 
-      // Broadcast to everyone in the room (including sender)
       io.to(conversationId).emit("new_message", message);
+      const members = await prisma.groupMember.findMany({
+        where: { conversationId },
+        select: { userId: true },
+      });
+      members.forEach((m) => emitToUser(m.userId, "new_message", message));
     }
   );
 
@@ -55,10 +60,16 @@ export const registerChatHandlers = (
     async ({ conversationId }: { conversationId: string }) => {
       const readIds = await markMessagesRead(conversationId, userId);
       if (readIds.length > 0) {
-        socket.to(conversationId).emit("messages_read", {
-          conversationId,
-          userId,
-          messageIds: readIds,
+        const payload = { conversationId, userId, messageIds: readIds };
+        socket.to(conversationId).emit("messages_read", payload);
+        const members = await prisma.groupMember.findMany({
+          where: { conversationId },
+          select: { userId: true },
+        });
+        members.forEach((m) => {
+          if (m.userId !== userId) {
+            emitToUser(m.userId, "messages_read", payload);
+          }
         });
       }
     }

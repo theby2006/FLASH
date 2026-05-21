@@ -4,6 +4,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { useChatStore } from "../../store/useChatStore";
 import Avatar from "../ui/Avatar";
 import CallButtons from "../call/CallButtons";
+import { formatLastSeen } from "../../utils/formatTime";
 
 interface ChatHeaderProps {
   conversation: Conversation;
@@ -15,7 +16,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   onInfoClick,
 }) => {
   const { dbUser } = useAuth();
-  const { onlineUsers, typingUsers } = useChatStore();
+  const { onlineUsers, lastSeenByUser, typingUsers } = useChatStore();
 
   const otherMember = conversation.isGroup
     ? null
@@ -42,12 +43,19 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
       ? "Several people are typing…"
       : null;
 
+  const lastSeen =
+    otherMember && lastSeenByUser[otherMember.userId]
+      ? lastSeenByUser[otherMember.userId]
+      : undefined;
+
   const statusText = typingText
     ? typingText
     : conversation.isGroup
     ? `${conversation.members.length} members`
     : isOnline
     ? "Online"
+    : lastSeen
+    ? formatLastSeen(lastSeen)
     : "Offline";
 
   return (
