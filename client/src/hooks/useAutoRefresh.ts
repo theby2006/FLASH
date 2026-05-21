@@ -28,7 +28,8 @@ export const useAutoRefresh = () => {
     async (opts?: { syncActiveMessages?: boolean }) => {
       if (refreshingRef.current) return;
       refreshingRef.current = true;
-      const syncMessages = opts?.syncActiveMessages ?? !connected;
+      const syncMessages =
+        opts?.syncActiveMessages ?? (!connected || !!activeConversationId);
 
       try {
         const [convs, contacts, reqs] = await Promise.all([
@@ -53,6 +54,7 @@ export const useAutoRefresh = () => {
     },
     [
       connected,
+      activeConversationId,
       setConversations,
       setContacts,
       setPendingRequests,

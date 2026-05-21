@@ -98,23 +98,35 @@ export const registerCallHandlers = (
       callType,
     });
 
-    let delivered = forwardToUser(toUserId, "call_incoming", {
+    const incomingPayload = {
       callId,
       conversationId,
       callType,
       fromDisplayName: fromDisplayName ?? "Someone",
-    });
+    };
+
+    let delivered = forwardToUser(toUserId, "call_incoming", incomingPayload);
 
     // Brief retry — socket may register online a moment after connect
     if (!delivered) {
       await new Promise((r) => setTimeout(r, 600));
       if (isUserOnline(toUserId)) {
-        delivered = forwardToUser(toUserId, "call_incoming", {
-          callId,
-          conversationId,
-          callType,
-          fromDisplayName: fromDisplayName ?? "Someone",
+        delivered = forwardToUser(toUserId, "call_incoming", incomingPayload);
+      }
+    }
+
+    // Backup: callee auto-joins DM rooms on connect
+    if (!delivered) {
+      const calleeSockets = await _io.in(conversationId).fetchSockets();
+      const calleeSocket = calleeSockets.find(
+        (s) => (s.data as { userId?: string }).userId === toUserId
+      );
+      if (calleeSocket) {
+        calleeSocket.emit("call_incoming", {
+          ...incomingPayload,
+          fromUserId: userId,
         });
+        delivered = true;
       }
     }
 

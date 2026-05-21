@@ -2,15 +2,25 @@ import React from "react";
 
 interface ConnectionStatusProps {
   connected: boolean;
+  error?: string | null;
 }
 
-const ConnectionStatus: React.FC<ConnectionStatusProps> = ({ connected }) => (
+const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
+  connected,
+  error,
+}) => (
   <span
     className={`connection-status ${connected ? "live" : "reconnecting"}`}
-    title={connected ? "Real-time connected" : "Reconnecting…"}
+    title={
+      connected
+        ? "Real-time connected"
+        : error
+          ? `Connection error: ${error}`
+          : "Reconnecting…"
+    }
   >
     <span className="connection-dot" aria-hidden />
-    {connected ? "Live" : "Reconnecting…"}
+    {connected ? "Live" : error ? "Offline" : "Reconnecting…"}
   </span>
 );
 

@@ -82,13 +82,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     return unsubscribe;
   }, []);
 
-  // Auto-refresh token every 55 minutes
+  // Refresh token so Socket.io auth stays valid (reconnects via idToken effect)
   useEffect(() => {
     if (!firebaseUser) return;
-    const interval = setInterval(async () => {
+    const refresh = async () => {
       const token = await firebaseUser.getIdToken(true);
       setIdToken(token);
-    }, 55 * 60 * 1000);
+    };
+    const interval = setInterval(refresh, 10 * 60 * 1000);
     return () => clearInterval(interval);
   }, [firebaseUser]);
 

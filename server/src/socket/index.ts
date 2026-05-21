@@ -1,4 +1,5 @@
 import { Server } from "socket.io";
+import { prisma } from "../config/db";
 import { adminAuth, isFirebaseConfigured } from "../config/firebase";
 import { resolveDbUserId } from "../services/userIdentity";
 import { registerChatHandlers } from "./chatHandlers";
@@ -48,6 +49,14 @@ export const initSocket = (io: Server) => {
 
     if (wasOffline) {
       await notifyFriendsUserOnline(userId);
+    }
+
+    const memberships = await prisma.groupMember.findMany({
+      where: { userId },
+      select: { conversationId: true },
+    });
+    for (const m of memberships) {
+      socket.join(m.conversationId);
     }
 
     await registerPresenceHandlers(io, socket, userId);

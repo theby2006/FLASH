@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { useSocketContext } from "../contexts/SocketContext";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import { useChatStore } from "../store/useChatStore";
 import ContactList from "../components/contacts/ContactList";
@@ -18,6 +19,7 @@ const ChatPage: React.FC = () => {
     useChatStore();
   const [showGroupInfo, setShowGroupInfo] = useState(false);
   const { connected } = useAutoRefresh();
+  const socketError = useSocketContext().socketError;
 
   useEffect(() => {
     const totalUnread = conversations.reduce(
@@ -56,7 +58,7 @@ const ChatPage: React.FC = () => {
             <Avatar src={dbUser.photoURL} name={dbUser.displayName} size="md" />
             <div className="user-profile-text">
               <span className="user-name">{dbUser.displayName}</span>
-              <ConnectionStatus connected={connected} />
+              <ConnectionStatus connected={connected} error={socketError} />
             </div>
           </div>
           <button className="logout-btn" onClick={signOut} aria-label="Sign out">

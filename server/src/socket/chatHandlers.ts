@@ -26,31 +26,51 @@ export const registerChatHandlers = (
   // Send a message
   socket.on(
     "send_message",
-    async ({
-      conversationId,
-      content,
-      type = "TEXT",
-    }: {
-      conversationId: string;
-      content: string;
-      type?: "TEXT" | "IMAGE" | "FILE";
-    }) => {
-      if (!content?.trim() && type === "TEXT") return;
+    async (
+      {
+        conversationId,
+        content,
+        type = "TEXT",
+      }: {
+        conversationId: string;
+        content: string;
+        type?: "TEXT" | "IMAGE" | "FILE";
+      },
+      ack?: (res: { ok: boolean; message?: unknown; error?: string }) => void
+    ) => {
+      try {
+        if (!content?.trim() && type === "TEXT") {
+          ack?.({ ok: false, error: "Empty message" });
+          return;
+        }
 
-      // Verify membership
-      const member = await prisma.groupMember.findUnique({
-        where: { userId_conversationId: { userId, conversationId } },
-      });
-      if (!member) return;
+        const member = await prisma.groupMember.findUnique({
+          where: { userId_conversationId: { userId, conversationId } },
+        });
+        if (!member) {
+          ack?.({ ok: false, error: "Not a member" });
+          return;
+        }
 
-      // Persist to PostgreSQL first, then push in real time via Socket.io
-      const message = await saveMessage(conversationId, userId, content, type);
+        const message = await saveMessage(
+          conversationId,
+          userId,
+          content,
+          type
+        );
 
-      const members = await prisma.groupMember.findMany({
-        where: { conversationId },
-        select: { userId: true },
-      });
-      members.forEach((m) => emitToUser(m.userId, "new_message", message));
+        const members = await prisma.groupMember.findMany({
+          where: { conversationId },
+          select: { userId: true },
+        });
+
+        io.to(conversationId).emit("new_message", message);
+        members.forEach((m) => emitToUser(m.userId, "new_message", message));
+
+        ack?.({ ok: true, message });
+      } catch (e) {
+        ack?.({ ok: false, error: "Failed to send" });
+      }
     }
   );
 

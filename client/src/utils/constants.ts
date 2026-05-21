@@ -1,21 +1,34 @@
 /** In dev, use same-origin + Vite proxy unless VITE_* overrides are set */
 const isDev = import.meta.env.DEV;
 
+function lanBackendOrigin(): string | null {
+  if (typeof window === "undefined") return null;
+  const host = window.location.hostname;
+  if (host === "localhost" || host === "127.0.0.1") return null;
+  const port = import.meta.env.VITE_DEV_API_PORT ?? "5001";
+  return `http://${host}:${port}`;
+}
+
+const lanApi = lanBackendOrigin();
+
+/** On phone/tablet (LAN IP), talk to backend :5001 directly — Vite WS proxy is unreliable */
 export const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ??
-  (isDev ? "" : "http://localhost:5001");
+  (lanApi ?? (isDev ? "" : "http://localhost:5001"));
 
-/** undefined = connect to current host (proxied /socket.io in dev) */
 export const SOCKET_URL: string | undefined =
   import.meta.env.VITE_SOCKET_URL ||
-  (isDev ? undefined : "http://localhost:5001");
+  (lanApi ?? (isDev ? undefined : "http://localhost:5001"));
 
 export const MESSAGE_LIMIT = 30;
 
 export const TYPING_DEBOUNCE_MS = 1500;
 
 /** Poll when socket is connected (backup sync, ms) */
-export const AUTO_REFRESH_INTERVAL_CONNECTED_MS = 45_000;
+export const AUTO_REFRESH_INTERVAL_CONNECTED_MS = 15_000;
+
+/** Fast sync for open chat when realtime may lag (ms) */
+export const ACTIVE_CHAT_SYNC_MS = 2_500;
 
 /** Poll more often when socket is down (ms) */
 export const AUTO_REFRESH_INTERVAL_DISCONNECTED_MS = 10_000;
