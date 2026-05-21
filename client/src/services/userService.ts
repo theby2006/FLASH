@@ -1,5 +1,5 @@
 import api from "./api";
-import { User, FriendRequest } from "../types";
+import type { User, FriendRequest } from "../types";
 
 export const searchUserByEmail = async (email: string): Promise<User | null> => {
   const res = await api.get(`/api/users/search?email=${encodeURIComponent(email)}`);

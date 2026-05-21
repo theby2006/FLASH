@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { Conversation, Message, User, FriendRequest } from "../types";
+import type { Conversation, Message, User, FriendRequest } from "../types";
 
 interface ChatStore {
   // Conversations

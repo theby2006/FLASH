@@ -6,14 +6,14 @@ import React, {
   useCallback,
 } from "react";
 import {
-  User as FirebaseUser,
   signInWithPopup,
   signOut as firebaseSignOut,
   onAuthStateChanged,
 } from "firebase/auth";
+import type { User as FirebaseUser } from "firebase/auth";
 import { auth, googleProvider } from "../services/firebase";
 import { loginWithBackend } from "../services/authService";
-import { User } from "../types";
+import type { User } from "../types";
 
 interface AuthContextType {
   firebaseUser: FirebaseUser | null;

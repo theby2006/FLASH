@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useSocket } from "./useSocket";
 import { useChatStore } from "../store/useChatStore";
 import { getMessages } from "../services/chatService";
-import { Message } from "../types";
+import type { Message } from "../types";
 
 export const useMessages = (conversationId: string | null) => {
   const { socket } = useSocket();

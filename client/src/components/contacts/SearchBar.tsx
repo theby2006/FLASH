@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from "react";
 import { searchUserByEmail, sendFriendRequest } from "../../services/userService";
-import { User } from "../../types";
+import type { User } from "../../types";
 import Avatar from "../ui/Avatar";
 import Spinner from "../ui/Spinner";
 

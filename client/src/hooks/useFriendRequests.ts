@@ -5,7 +5,7 @@ import {
   getPendingRequests,
   respondToRequest,
 } from "../services/userService";
-import { FriendRequest } from "../types";
+import type { FriendRequest } from "../types";
 
 export const useFriendRequests = () => {
   const { socket } = useSocket();

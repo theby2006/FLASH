@@ -1,5 +1,5 @@
 import React from "react";
-import { FriendRequest } from "../../types";
+import type { FriendRequest } from "../../types";
 import Avatar from "../ui/Avatar";
 import { useFriendRequests } from "../../hooks/useFriendRequests";
 

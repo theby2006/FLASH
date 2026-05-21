@@ -6,7 +6,7 @@ import MessageInput from "./MessageInput";
 import ChatHeader from "./ChatHeader";
 import Spinner from "../ui/Spinner";
 import { formatDateSeparator } from "../../utils/formatTime";
-import { Conversation } from "../../types";
+import type { Conversation } from "../../types";
 
 interface ChatWindowProps {
   conversation: Conversation;

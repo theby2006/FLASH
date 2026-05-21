@@ -1,5 +1,5 @@
 import React from "react";
-import { Conversation } from "../../types";
+import type { Conversation } from "../../types";
 import { useAuth } from "../../hooks/useAuth";
 import { useChatStore } from "../../store/useChatStore";
 import Avatar from "../ui/Avatar";

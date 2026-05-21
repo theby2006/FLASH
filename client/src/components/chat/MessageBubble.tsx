@@ -1,5 +1,5 @@
 import React from "react";
-import { Message } from "../../types";
+import type { Message } from "../../types";
 import { useAuth } from "../../hooks/useAuth";
 import { formatTime } from "../../utils/formatTime";
 import Avatar from "../ui/Avatar";

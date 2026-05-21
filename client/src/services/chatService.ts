@@ -1,5 +1,5 @@
 import api from "./api";
-import { Conversation, Message } from "../types";
+import type { Conversation, Message } from "../types";
 
 export const getConversations = async (): Promise<Conversation[]> => {
   const res = await api.get("/api/chats");

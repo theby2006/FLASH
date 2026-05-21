@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Conversation } from "../../types";
+import type { Conversation } from "../../types";
 import { useAuth } from "../../hooks/useAuth";
 import { addGroupMember, removeGroupMember } from "../../services/chatService";
 import { useChatStore } from "../../store/useChatStore";
