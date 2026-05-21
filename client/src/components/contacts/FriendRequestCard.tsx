@@ -1,12 +1,36 @@
-import React from "react";
+import React, { useState } from "react";
 import type { FriendRequest } from "../../types";
 import Avatar from "../ui/Avatar";
 import { useFriendRequests } from "../../hooks/useFriendRequests";
+import { useChatStore } from "../../store/useChatStore";
+import { getOrCreateDM } from "../../services/chatService";
+import { getContacts } from "../../services/userService";
 
 const FriendRequestCard: React.FC<{ request: FriendRequest }> = ({
   request,
 }) => {
   const { acceptRequest, rejectRequest } = useFriendRequests();
+  const { addConversation, setActiveConversationId, setContacts } =
+    useChatStore();
+  const [busy, setBusy] = useState(false);
+
+  const handleAccept = async () => {
+    setBusy(true);
+    try {
+      await acceptRequest(request.id);
+      const [conv, contacts] = await Promise.all([
+        getOrCreateDM(request.senderId),
+        getContacts(),
+      ]);
+      addConversation(conv);
+      setActiveConversationId(conv.id);
+      setContacts(contacts);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className="friend-request-card">
@@ -23,7 +47,8 @@ const FriendRequestCard: React.FC<{ request: FriendRequest }> = ({
         <button
           id={`accept-request-${request.id}`}
           className="accept-btn"
-          onClick={() => acceptRequest(request.id)}
+          onClick={handleAccept}
+          disabled={busy}
           aria-label="Accept friend request"
         >
           ✓
@@ -32,6 +57,7 @@ const FriendRequestCard: React.FC<{ request: FriendRequest }> = ({
           id={`reject-request-${request.id}`}
           className="reject-btn"
           onClick={() => rejectRequest(request.id)}
+          disabled={busy}
           aria-label="Reject friend request"
         >
           ✕

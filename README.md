@@ -53,6 +53,25 @@ cp .env.example .env
 npm run dev
 ```
 
+### 5. Run both apps from repo root (optional)
+```bash
+npm install
+npm run db:up
+npm run dev
+```
+
+## Google / Firebase authentication
+
+FLASH uses **Firebase Auth** (not raw OAuth env vars in this repo):
+
+1. Create a Firebase project and enable **Google** sign-in.
+2. Link your Google OAuth Web client in Firebase Console (Authentication → Google).
+3. Add `http://localhost:5173` as an authorized JavaScript origin in Google Cloud Console.
+4. Copy the **Firebase Web app** config into `client/.env` (`VITE_FIREBASE_*`).
+5. Generate a **Firebase Admin** service account JSON and map it to `server/.env` (`FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`).
+
+Do not commit `.env` files or OAuth client secrets.
+
 ## ✨ Key Features
 * **Google Authentication:** Secure login using Firebase Auth.
 * **Real-time Messaging:** Powered by Socket.io for instantaneous 1-on-1 and Group chats.

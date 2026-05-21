@@ -5,21 +5,33 @@ import { SocketProvider } from "./contexts/SocketContext";
 import LoginPage from "./pages/LoginPage";
 import ChatPage from "./pages/ChatPage";
 import NotFoundPage from "./pages/NotFoundPage";
+import Spinner from "./components/ui/Spinner";
 
-// Protected Route wrapper
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { dbUser, loading } = useAuthContext();
-  
-  if (loading) return null;
+
+  if (loading) {
+    return (
+      <div className="full-screen-center">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
   if (!dbUser) return <Navigate to="/login" replace />;
-  
+
   return <>{children}</>;
 };
 
 const AppRoutes = () => {
   const { dbUser, loading } = useAuthContext();
 
-  if (loading) return null; // Or a global splash screen
+  if (loading) {
+    return (
+      <div className="full-screen-center">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
 
   return (
     <Routes>

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { getInitials } from "../../utils/formatTime";
 
 interface AvatarProps {
@@ -23,18 +23,18 @@ const Avatar: React.FC<AvatarProps> = ({
 }) => {
   const px = sizeMap[size];
   const fontSize = px * 0.35;
+  const [imgFailed, setImgFailed] = useState(false);
+  const showImg = src && !imgFailed;
 
   return (
     <div className="avatar-wrapper" style={{ width: px, height: px }}>
-      {src ? (
+      {showImg ? (
         <img
           src={src}
           alt={name}
           className="avatar-img"
           style={{ width: px, height: px, fontSize }}
-          onError={(e) => {
-            (e.target as HTMLImageElement).style.display = "none";
-          }}
+          onError={() => setImgFailed(true)}
         />
       ) : (
         <div

@@ -38,14 +38,39 @@ export const getConversations = async (
         },
       },
     },
-    orderBy: { joinedAt: "desc" },
   });
 
-  const conversations = memberships.map((m) => ({
-    ...m.conversation,
-    lastMessage: m.conversation.messages[0] ?? null,
-    messages: undefined,
-  }));
+  const conversationIds = memberships.map((m) => m.conversation.id);
+
+  const unreadByConversation =
+    conversationIds.length > 0
+      ? await prisma.message.groupBy({
+          by: ["conversationId"],
+          where: {
+            conversationId: { in: conversationIds },
+            senderId: { not: userId },
+            NOT: { readBy: { has: userId } },
+          },
+          _count: { id: true },
+        })
+      : [];
+
+  const unreadMap = new Map(
+    unreadByConversation.map((u) => [u.conversationId, u._count.id])
+  );
+
+  const conversations = memberships
+    .map((m) => ({
+      ...m.conversation,
+      lastMessage: m.conversation.messages[0] ?? null,
+      unreadCount: unreadMap.get(m.conversation.id) ?? 0,
+      messages: undefined,
+    }))
+    .sort((a, b) => {
+      const aTime = a.lastMessage?.createdAt ?? a.updatedAt;
+      const bTime = b.lastMessage?.createdAt ?? b.updatedAt;
+      return new Date(bTime).getTime() - new Date(aTime).getTime();
+    });
 
   res.json({ success: true, data: conversations });
 };
@@ -58,19 +83,29 @@ export const getOrCreateDM = async (
   const userId = req.user!.uid;
   const { friendId } = req.body as { friendId: string };
 
-  if (!friendId) {
-    res.status(400).json({ success: false, message: "friendId required" });
+  if (friendId === userId) {
+    res.status(400).json({ success: false, message: "Cannot DM yourself" });
     return;
   }
 
-  // Find existing non-group conversation with exactly these two users
+  const friendship = await prisma.friendship.findFirst({
+    where: {
+      OR: [
+        { userId, friendId },
+        { userId: friendId, friendId: userId },
+      ],
+    },
+  });
+
+  if (!friendship) {
+    res.status(403).json({ success: false, message: "Not friends with this user" });
+    return;
+  }
+
   const existing = await prisma.conversation.findFirst({
     where: {
       isGroup: false,
-      AND: [
-        { members: { some: { userId } } },
-        { members: { some: { userId: friendId } } },
-      ],
+      members: { every: { userId: { in: [userId, friendId] } } },
     },
     include: {
       members: {
@@ -88,12 +123,11 @@ export const getOrCreateDM = async (
     },
   });
 
-  if (existing) {
+  if (existing && existing.members.length === 2) {
     res.json({ success: true, data: existing });
     return;
   }
 
-  // Create new DM conversation
   const conversation = await prisma.conversation.create({
     data: {
       isGroup: false,
@@ -134,7 +168,6 @@ export const getMessages = async (
   const limit = parseInt((req.query.limit as string) ?? "30");
   const skip = (page - 1) * limit;
 
-  // Verify membership
   const member = await prisma.groupMember.findUnique({
     where: { userId_conversationId: { userId, conversationId } },
   });

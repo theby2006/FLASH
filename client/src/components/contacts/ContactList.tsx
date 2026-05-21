@@ -1,9 +1,10 @@
 import React, { useEffect } from "react";
 import { useChatStore } from "../../store/useChatStore";
-import { getConversations } from "../../services/chatService";
+import { getConversations, getOrCreateDM } from "../../services/chatService";
 import ContactItem from "./ContactItem";
 import { useFriendRequests } from "../../hooks/useFriendRequests";
 import FriendRequestCard from "./FriendRequestCard";
+import Avatar from "../ui/Avatar";
 
 interface ContactListProps {
   onSelectConversation: (id: string) => void;
@@ -12,9 +13,12 @@ interface ContactListProps {
 const ContactList: React.FC<ContactListProps> = ({ onSelectConversation }) => {
   const {
     conversations,
+    contacts,
     setConversations,
     activeConversationId,
     setActiveConversationId,
+    addConversation,
+    onlineUsers,
   } = useChatStore();
   const { pendingRequests } = useFriendRequests();
 
@@ -29,6 +33,25 @@ const ContactList: React.FC<ContactListProps> = ({ onSelectConversation }) => {
     onSelectConversation(id);
   };
 
+  const openDmWithFriend = async (friendId: string) => {
+    try {
+      const conv = await getOrCreateDM(friendId);
+      addConversation(conv);
+      handleSelect(conv.id);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const friendsWithoutChat = contacts.filter(
+    (c) =>
+      !conversations.some(
+        (conv) =>
+          !conv.isGroup &&
+          conv.members.some((m) => m.userId === c.id)
+      )
+  );
+
   return (
     <div className="contact-list">
       {pendingRequests.length > 0 && (
@@ -38,6 +61,32 @@ const ContactList: React.FC<ContactListProps> = ({ onSelectConversation }) => {
           </p>
           {pendingRequests.map((req) => (
             <FriendRequestCard key={req.id} request={req} />
+          ))}
+        </div>
+      )}
+
+      {friendsWithoutChat.length > 0 && (
+        <div className="contact-list-section">
+          <p className="contact-list-section-title">Contacts</p>
+          {friendsWithoutChat.map((user) => (
+            <button
+              key={user.id}
+              type="button"
+              className="contact-item"
+              onClick={() => openDmWithFriend(user.id)}
+              aria-label={`Message ${user.displayName}`}
+            >
+              <Avatar
+                src={user.photoURL}
+                name={user.displayName}
+                size="md"
+                isOnline={onlineUsers.has(user.id)}
+              />
+              <div className="contact-item-info">
+                <span className="contact-item-name">{user.displayName}</span>
+                <span className="contact-item-last-msg">Tap to message</span>
+              </div>
+            </button>
           ))}
         </div>
       )}

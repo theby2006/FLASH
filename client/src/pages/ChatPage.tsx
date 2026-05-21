@@ -13,7 +13,12 @@ import Spinner from "../components/ui/Spinner";
 
 const ChatPage: React.FC = () => {
   const { dbUser, signOut, loading } = useAuth();
-  const { conversations, activeConversationId, setContacts } = useChatStore();
+  const {
+    conversations,
+    activeConversationId,
+    setActiveConversationId,
+    setContacts,
+  } = useChatStore();
   const [showGroupInfo, setShowGroupInfo] = useState(false);
 
   useEffect(() => {
@@ -71,6 +76,14 @@ const ChatPage: React.FC = () => {
       <main className={`chat-main ${!activeConversationId ? "mobile-hidden" : ""}`}>
         {activeConversation ? (
           <div className="chat-container">
+            <button
+              type="button"
+              className="mobile-back-btn"
+              onClick={() => setActiveConversationId(null)}
+              aria-label="Back to conversations"
+            >
+              ← Chats
+            </button>
             <ChatWindow
               conversation={activeConversation}
               onInfoClick={() => setShowGroupInfo(!showGroupInfo)}

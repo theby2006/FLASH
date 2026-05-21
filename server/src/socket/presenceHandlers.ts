@@ -1,45 +1,45 @@
 import { Server, Socket } from "socket.io";
-import { prisma } from "../../config/db";
+import { prisma } from "../config/db";
+import { emitToUser, isUserOnline } from "./socketNotifier";
 
 export const registerPresenceHandlers = async (
-  io: Server,
+  _io: Server,
   socket: Socket,
-  userId: string,
-  onlineUsers: Map<string, string>
+  userId: string
 ) => {
-  // Get this user's contact IDs
   const friendships = await prisma.friendship.findMany({
     where: { userId },
     select: { friendId: true },
   });
   const contactIds = friendships.map((f) => f.friendId);
+  const lastSeen = () => new Date().toISOString();
 
-  // Notify online contacts that this user is now online
-  contactIds.forEach((contactId) => {
-    const contactSocketId = onlineUsers.get(contactId);
-    if (contactSocketId) {
-      io.to(contactSocketId).emit("user_online", {
-        userId,
+  contactIds.forEach((friendId) => {
+    if (isUserOnline(friendId)) {
+      socket.emit("user_online", {
+        userId: friendId,
         isOnline: true,
-        lastSeen: new Date().toISOString(),
+        lastSeen: lastSeen(),
       });
     }
   });
 
-  // On disconnect — notify all online contacts
-  socket.on("disconnect", () => {
-    onlineUsers.delete(userId);
-    const lastSeen = new Date().toISOString();
+  contactIds.forEach((contactId) => {
+    emitToUser(contactId, "user_online", {
+      userId,
+      isOnline: true,
+      lastSeen: lastSeen(),
+    });
+  });
 
+  socket.on("disconnect", () => {
+    const seen = lastSeen();
     contactIds.forEach((contactId) => {
-      const contactSocketId = onlineUsers.get(contactId);
-      if (contactSocketId) {
-        io.to(contactSocketId).emit("user_offline", {
-          userId,
-          isOnline: false,
-          lastSeen,
-        });
-      }
+      emitToUser(contactId, "user_offline", {
+        userId,
+        isOnline: false,
+        lastSeen: seen,
+      });
     });
   });
 };

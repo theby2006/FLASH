@@ -14,23 +14,25 @@ export const useMessages = (conversationId: string | null) => {
     updateLastMessage,
     setTyping,
     clearTyping,
+    clearUnread,
+    markMessagesReadByIds,
   } = useChatStore();
 
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const pageRef = useRef(1);
-  const joinedRef = useRef<Set<string>>(new Set());
+  const joinedRef = useRef<string | null>(null);
 
   const conversationMessages = conversationId
     ? (messages[conversationId] ?? [])
     : [];
 
-  // Load initial messages when conversation changes
   useEffect(() => {
     if (!conversationId) return;
 
     pageRef.current = 1;
     setHasMore(true);
+    joinedRef.current = null;
 
     const load = async () => {
       setLoading(true);
@@ -47,19 +49,16 @@ export const useMessages = (conversationId: string | null) => {
     load();
   }, [conversationId, setMessages]);
 
-  // Join socket room when conversation changes
   useEffect(() => {
     if (!socket || !conversationId) return;
-    if (joinedRef.current.has(conversationId)) return;
+    if (joinedRef.current === conversationId) return;
 
     socket.emit("join_conversation", { conversationId });
-    joinedRef.current.add(conversationId);
-
-    // Mark messages as read when joining
     socket.emit("message_read", { conversationId });
-  }, [socket, conversationId]);
+    joinedRef.current = conversationId;
+    clearUnread(conversationId);
+  }, [socket, conversationId, clearUnread]);
 
-  // Listen to new messages
   useEffect(() => {
     if (!socket) return;
 
@@ -67,17 +66,38 @@ export const useMessages = (conversationId: string | null) => {
       addMessage(msg.conversationId, msg);
       updateLastMessage(msg.conversationId, msg);
 
-      // Auto mark-read if this is the active conversation
       if (msg.conversationId === conversationId) {
         socket.emit("message_read", { conversationId: msg.conversationId });
       }
     };
 
     socket.on("new_message", onNewMessage);
-    return () => { socket.off("new_message", onNewMessage); };
+    return () => {
+      socket.off("new_message", onNewMessage);
+    };
   }, [socket, conversationId, addMessage, updateLastMessage]);
 
-  // Listen to typing events
+  useEffect(() => {
+    if (!socket) return;
+
+    const onMessagesRead = ({
+      conversationId: convId,
+      userId,
+      messageIds,
+    }: {
+      conversationId: string;
+      userId: string;
+      messageIds: string[];
+    }) => {
+      markMessagesReadByIds(convId, userId, messageIds);
+    };
+
+    socket.on("messages_read", onMessagesRead);
+    return () => {
+      socket.off("messages_read", onMessagesRead);
+    };
+  }, [socket, markMessagesReadByIds]);
+
   useEffect(() => {
     if (!socket) return;
 
@@ -108,7 +128,6 @@ export const useMessages = (conversationId: string | null) => {
     };
   }, [socket, setTyping, clearTyping]);
 
-  // Load older messages (infinite scroll)
   const loadMore = useCallback(async () => {
     if (!conversationId || loading || !hasMore) return;
     setLoading(true);
@@ -122,7 +141,6 @@ export const useMessages = (conversationId: string | null) => {
     }
   }, [conversationId, loading, hasMore, prependMessages]);
 
-  // Send a message via socket
   const sendMessage = useCallback(
     (content: string, type: Message["type"] = "TEXT") => {
       if (!socket || !conversationId || !content.trim()) return;
@@ -131,5 +149,11 @@ export const useMessages = (conversationId: string | null) => {
     [socket, conversationId]
   );
 
-  return { messages: conversationMessages, loading, hasMore, loadMore, sendMessage };
+  return {
+    messages: conversationMessages,
+    loading,
+    hasMore,
+    loadMore,
+    sendMessage,
+  };
 };

@@ -9,25 +9,25 @@ import type { FriendRequest } from "../types";
 
 export const useFriendRequests = () => {
   const { socket } = useSocket();
-  const { pendingRequests, setPendingRequests, removePendingRequest } =
+  const { pendingRequests, setPendingRequests, addPendingRequest, removePendingRequest } =
     useChatStore();
 
-  // Fetch on mount
   useEffect(() => {
     getPendingRequests()
       .then(setPendingRequests)
       .catch(console.error);
   }, [setPendingRequests]);
 
-  // Listen for real-time friend request notifications
   useEffect(() => {
     if (!socket) return;
     const onFriendRequest = (req: FriendRequest) => {
-      setPendingRequests([req, ...pendingRequests]);
+      addPendingRequest(req);
     };
     socket.on("friend_request", onFriendRequest);
-    return () => { socket.off("friend_request", onFriendRequest); };
-  }, [socket, pendingRequests, setPendingRequests]);
+    return () => {
+      socket.off("friend_request", onFriendRequest);
+    };
+  }, [socket, addPendingRequest]);
 
   const acceptRequest = useCallback(
     async (requestId: string) => {

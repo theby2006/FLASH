@@ -1,6 +1,7 @@
 import { Response } from "express";
 import { prisma } from "../config/db";
 import { AuthRequest } from "../types";
+import { emitToUser } from "../socket/socketNotifier";
 
 // GET /api/users/search?email=
 export const searchByEmail = async (
@@ -78,8 +79,17 @@ export const sendFriendRequest = async (
 
   const friendRequest = await prisma.friendRequest.create({
     data: { senderId, receiverId, status: "PENDING" },
-    include: { sender: true, receiver: true },
+    include: {
+      sender: {
+        select: { id: true, email: true, displayName: true, photoURL: true },
+      },
+      receiver: {
+        select: { id: true, email: true, displayName: true, photoURL: true },
+      },
+    },
   });
+
+  emitToUser(receiverId, "friend_request", friendRequest);
 
   res.status(201).json({ success: true, data: friendRequest });
 };
@@ -126,6 +136,11 @@ export const respondToRequest = async (
     res
       .status(400)
       .json({ success: false, message: "Request already responded to" });
+    return;
+  }
+
+  if (action !== "ACCEPT" && action !== "REJECT") {
+    res.status(400).json({ success: false, message: "action must be ACCEPT or REJECT" });
     return;
   }
 

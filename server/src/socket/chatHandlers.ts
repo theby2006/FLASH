@@ -1,6 +1,6 @@
 import { Server, Socket } from "socket.io";
-import { prisma } from "../../config/db";
-import { saveMessage, markMessagesRead } from "../../services/messageService";
+import { prisma } from "../config/db";
+import { saveMessage, markMessagesRead } from "../services/messageService";
 
 export const registerChatHandlers = (
   io: Server,

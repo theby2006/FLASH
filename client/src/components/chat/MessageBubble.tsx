@@ -15,7 +15,9 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 }) => {
   const { dbUser } = useAuth();
   const isMine = message.senderId === dbUser?.id;
-  const isRead = dbUser ? message.readBy.length > 1 : false;
+  const isRead = dbUser
+    ? message.readBy.some((id) => id !== dbUser.id)
+    : false;
 
   return (
     <div className={`message-row ${isMine ? "mine" : "theirs"}`}>
