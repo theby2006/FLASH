@@ -13,28 +13,24 @@ import authRoutes from "./routes/authRoutes";
 import userRoutes from "./routes/userRoutes";
 import chatRoutes from "./routes/chatRoutes";
 import groupRoutes from "./routes/groupRoutes";
+import callRoutes from "./routes/callRoutes";
 import { errorHandler } from "./middleware/errorHandler";
 import { initSocket } from "./socket";
+import { corsOptions } from "./config/cors";
 
 const app = express();
 const httpServer = http.createServer(app);
 
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CLIENT_URL ?? "http://localhost:5173",
+    ...corsOptions,
     methods: ["GET", "POST"],
-    credentials: true,
   },
 });
 
 // ── Middleware ─────────────────────────────────────────────────────────────
 app.use(helmet());
-app.use(
-  cors({
-    origin: process.env.CLIENT_URL ?? "http://localhost:5173",
-    credentials: true,
-  })
-);
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // ── Routes ─────────────────────────────────────────────────────────────────
@@ -42,6 +38,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/chats", chatRoutes);
 app.use("/api/groups", groupRoutes);
+app.use("/api/calls", callRoutes);
 
 // Health check
 app.get("/health", (_req, res) => {
@@ -56,8 +53,9 @@ initSocket(io);
 
 // ── Start server ───────────────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT ?? "5000");
-httpServer.listen(PORT, () => {
-  console.log(`⚡ FLASH server running on http://localhost:${PORT}`);
+const HOST = process.env.HOST ?? "0.0.0.0";
+httpServer.listen(PORT, HOST, () => {
+  console.log(`⚡ FLASH server running on http://${HOST}:${PORT}`);
 });
 
 export { io };

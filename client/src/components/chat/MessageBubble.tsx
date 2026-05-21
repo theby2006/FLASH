@@ -15,9 +15,11 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 }) => {
   const { dbUser } = useAuth();
   const isMine = message.senderId === dbUser?.id;
-  const isRead = dbUser
-    ? message.readBy.some((id) => id !== dbUser.id)
-    : false;
+  const isPending = message.id.startsWith("pending-");
+  const isRead =
+    !isPending && dbUser
+      ? message.readBy.some((id) => id !== dbUser.id)
+      : false;
 
   return (
     <div className={`message-row ${isMine ? "mine" : "theirs"}`}>
@@ -68,10 +70,10 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
             </span>
             {isMine && (
               <span
-                className={`message-tick ${isRead ? "read" : "sent"}`}
-                title={isRead ? "Read" : "Sent"}
+                className={`message-tick ${isPending ? "pending" : isRead ? "read" : "sent"}`}
+                title={isPending ? "Sending…" : isRead ? "Read" : "Sent"}
               >
-                {isRead ? "✓✓" : "✓"}
+                {isPending ? "◷" : isRead ? "✓✓" : "✓"}
               </span>
             )}
           </div>

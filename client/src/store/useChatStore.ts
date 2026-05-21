@@ -92,10 +92,14 @@ export const useChatStore = create<ChatStore>((set) => ({
     set((s) => {
       const existing = s.messages[conversationId] ?? [];
       if (existing.some((m) => m.id === msg.id)) return s;
+      const withoutPending = existing.filter(
+        (m) =>
+          !m.id.startsWith("pending-") || m.senderId !== msg.senderId
+      );
       return {
         messages: {
           ...s.messages,
-          [conversationId]: [...existing, msg],
+          [conversationId]: [...withoutPending, msg],
         },
       };
     }),

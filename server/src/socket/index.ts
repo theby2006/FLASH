@@ -1,5 +1,6 @@
 import { Server } from "socket.io";
 import { adminAuth, isFirebaseConfigured } from "../config/firebase";
+import { resolveDbUserId } from "../services/userIdentity";
 import { registerChatHandlers } from "./chatHandlers";
 import {
   registerPresenceHandlers,
@@ -27,7 +28,10 @@ export const initSocket = (io: Server) => {
       if (!token) return next(new Error("Unauthorized"));
 
       const decoded = await adminAuth.verifyIdToken(token);
-      socket.data.userId = decoded.uid;
+      socket.data.userId = await resolveDbUserId(
+        decoded.uid,
+        decoded.email ?? ""
+      );
       next();
     } catch {
       next(new Error("Unauthorized"));

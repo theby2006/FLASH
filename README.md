@@ -38,7 +38,7 @@ cp .env.example .env
 # Run database migrations and generate Prisma client
 npx prisma migrate dev --name init
 
-# Start the development server (runs on port 5000)
+# Start the development server (runs on port 5001)
 npm run dev
 ```
 
@@ -74,7 +74,7 @@ Do not commit `.env` files or OAuth client secrets.
 
 ## ✨ Key Features
 * **Google Authentication:** Secure login using Firebase Auth.
-* **Real-time Messaging:** Socket.io (WebSocket + polling fallback) with auto-refresh every 30s and on reconnect.
+* **Real-time Messaging:** Socket.io with instant delivery, typing, read receipts, and HTTP fallback refresh.
 * **Friend System:** Search users by email, send/accept/reject friend requests.
 * **Group Chats:** Create groups, add/remove members (Admins).
 * **Presence & Typing:** See who is online and when they are typing.
@@ -82,14 +82,48 @@ Do not commit `.env` files or OAuth client secrets.
 * **Voice & Video Calls:** 1:1 WebRTC calls with Socket.io signaling (DM friends only).
 * **Responsive UI:** Modern, dark-mode native-like interface.
 
-## Voice & video calls
+## Real-time + database
 
-1:1 **audio** and **video** calls work over **WebRTC** (encrypted media) with **Socket.io** signaling on your existing server.
+| Layer | Library | Role |
+|-------|---------|------|
+| **Persistence** | Prisma + PostgreSQL (Neon) | Messages, users, friendships, call history (`CallSession`) |
+| **Live delivery** | Socket.io | `new_message`, presence, typing, call signaling |
+| **Pattern** | DB first, then emit | e.g. `saveMessage()` → `emitToUser("new_message")` |
+
+HTTP polling (`useAutoRefresh`) only backs up when the socket is disconnected.
+
+## Voice & video calls (different devices)
+
+Same PC / two browsers on `localhost` often works with **STUN only**. **Phone ↔ laptop** or **Wi‑Fi ↔ mobile data** needs **TURN** (media relay).
+
+FLASH loads ICE servers from **`GET /api/calls/ice-servers`** (server env). Dev defaults include a public TURN relay when `ENABLE_DEV_TURN=true`.
+
+### Test on phone + laptop (LAN)
+
+1. Find your computer’s LAN IP, e.g. `192.168.1.100`.
+2. Start server with `HOST=0.0.0.0` and client with Vite `host: true` (already configured).
+3. On the **phone**, open `http://192.168.1.100:5173` — **not** `localhost`.
+4. Sign in on both devices, open the same DM, try voice then video.
+5. Allow mic/camera on both sides.
+
+Optional: add your LAN origin to `CLIENT_URLS` in `server/.env`:
+`CLIENT_URLS=http://localhost:5173,http://192.168.1.100:5173`
+
+### Production TURN
+
+Set on the **server** (not only the client):
+
+```env
+TURN_URL=turn:your-server.com:3478,turns:your-server.com:5349
+TURN_USERNAME=your-user
+TURN_CREDENTIAL=your-password
+```
+
+Or run local relay: `docker-compose up -d coturn` and point `TURN_*` at that host.
 
 - Use the phone / camera icons in a **direct message** chat header.
-- Both users must be **friends** and **online** (connected via socket).
-- **HTTPS** (or `localhost`) is required for camera/microphone access.
-- For production behind strict firewalls, add a **TURN** server to `ICE_SERVERS` in `client/src/utils/constants.ts`.
+- Both users must be **friends** and **online** (socket connected).
+- **HTTPS** (or `localhost` / LAN IP) is required for camera/microphone.
 
 ## 👥 Development Workflow
 

@@ -83,6 +83,9 @@ const ActiveCallOverlay: React.FC<ActiveCallOverlayProps> = ({ onEnd }) => {
           <div className="call-video-placeholder">
             <Avatar name={session.remoteDisplayName} size="xl" />
             <span>Connecting…</span>
+            <span className="call-connect-hint">
+              Cross-device calls use TURN relay — allow mic/camera on both devices
+            </span>
           </div>
         )}
         {showLocalVideo && (

@@ -26,9 +26,25 @@ export const VISIBILITY_REFRESH_DEBOUNCE_MS = 500;
 /** Ring / no-answer timeout (ms) */
 export const CALL_RING_TIMEOUT_MS = 45_000;
 
-/** STUN servers for WebRTC (add TURN in production for strict NATs) */
-export const ICE_SERVERS: RTCIceServer[] = [
-  { urls: "stun:stun.l.google.com:19302" },
-  { urls: "stun:stun1.l.google.com:19302" },
-  { urls: "stun:stun2.l.google.com:19302" },
-];
+function buildFallbackIceServers(): RTCIceServer[] {
+  const servers: RTCIceServer[] = [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+  ];
+
+  const turnUrl = import.meta.env.VITE_TURN_URL;
+  const turnUser = import.meta.env.VITE_TURN_USERNAME;
+  const turnCred = import.meta.env.VITE_TURN_CREDENTIAL;
+  if (turnUrl && turnUser && turnCred) {
+    servers.push({
+      urls: turnUrl.split(",").map((u) => u.trim()),
+      username: turnUser,
+      credential: turnCred,
+    });
+  }
+
+  return servers;
+}
+
+/** Fallback until GET /api/calls/ice-servers loads (prefer server TURN config) */
+export const ICE_SERVERS = buildFallbackIceServers();

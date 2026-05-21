@@ -18,6 +18,8 @@ interface CallStore {
   setVideoOff: (off: boolean) => void;
   setError: (error: string | null) => void;
   resetCall: () => void;
+  /** Clear stuck state so call buttons work again */
+  forceIdle: () => void;
 }
 
 export const useCallStore = create<CallStore>((set) => ({
@@ -44,6 +46,14 @@ export const useCallStore = create<CallStore>((set) => ({
       remoteStream: null,
       isMuted: false,
       isVideoOff: false,
+      error: null,
+    }),
+  forceIdle: () =>
+    set({
+      status: "idle",
+      session: null,
+      localStream: null,
+      remoteStream: null,
       error: null,
     }),
 }));

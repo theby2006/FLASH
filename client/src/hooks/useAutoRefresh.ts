@@ -24,35 +24,41 @@ export const useAutoRefresh = () => {
 
   const refreshingRef = useRef(false);
 
-  const refreshAll = useCallback(async () => {
-    if (refreshingRef.current) return;
-    refreshingRef.current = true;
-    try {
-      const [convs, contacts, reqs] = await Promise.all([
-        getConversations(),
-        getContacts(),
-        getPendingRequests(),
-      ]);
-      setConversations(convs);
-      setContacts(contacts);
-      setPendingRequests(reqs);
+  const refreshAll = useCallback(
+    async (opts?: { syncActiveMessages?: boolean }) => {
+      if (refreshingRef.current) return;
+      refreshingRef.current = true;
+      const syncMessages = opts?.syncActiveMessages ?? !connected;
 
-      const activeId = useChatStore.getState().activeConversationId;
-      if (activeId) {
-        const result = await getMessages(activeId, 1, 30);
-        mergeLatestMessages(activeId, result.data);
+      try {
+        const [convs, contacts, reqs] = await Promise.all([
+          getConversations(),
+          getContacts(),
+          getPendingRequests(),
+        ]);
+        setConversations(convs);
+        setContacts(contacts);
+        setPendingRequests(reqs);
+
+        const activeId = useChatStore.getState().activeConversationId;
+        if (activeId && syncMessages) {
+          const result = await getMessages(activeId, 1, 30);
+          mergeLatestMessages(activeId, result.data);
+        }
+      } catch (err) {
+        console.error("[AutoRefresh]", err);
+      } finally {
+        refreshingRef.current = false;
       }
-    } catch (err) {
-      console.error("[AutoRefresh]", err);
-    } finally {
-      refreshingRef.current = false;
-    }
-  }, [
-    setConversations,
-    setContacts,
-    setPendingRequests,
-    mergeLatestMessages,
-  ]);
+    },
+    [
+      connected,
+      setConversations,
+      setContacts,
+      setPendingRequests,
+      mergeLatestMessages,
+    ]
+  );
 
   const rejoinActiveRoom = useCallback(() => {
     if (!socket?.connected || !activeConversationId) return;
@@ -71,10 +77,10 @@ export const useAutoRefresh = () => {
     return () => window.clearInterval(intervalId);
   }, [refreshAll, connected]);
 
-  // After socket reconnect
+  // After socket reconnect — full sync including open chat messages
   useEffect(() => {
     if (refreshSignal === 0) return;
-    refreshAll();
+    void refreshAll({ syncActiveMessages: true });
     rejoinActiveRoom();
   }, [refreshSignal, refreshAll, rejoinActiveRoom]);
 
@@ -84,7 +90,7 @@ export const useAutoRefresh = () => {
     const onVisibility = () => {
       if (document.visibilityState !== "visible") return;
       debounceId = setTimeout(() => {
-        refreshAll();
+        void refreshAll({ syncActiveMessages: !connected });
         rejoinActiveRoom();
       }, VISIBILITY_REFRESH_DEBOUNCE_MS);
     };

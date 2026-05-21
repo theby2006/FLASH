@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useSocket } from "./useSocket";
+import { useAuth } from "./useAuth";
 import { useChatStore } from "../store/useChatStore";
 import { getMessages } from "../services/chatService";
 
 export const useMessages = (conversationId: string | null) => {
-  const { socket, refreshSignal } = useSocket();
+  const { socket, connected, refreshSignal } = useSocket();
+  const { dbUser } = useAuth();
   const {
     messages,
     setMessages,
     prependMessages,
+    addMessage,
     setTyping,
     clearTyping,
     clearUnread,
@@ -43,7 +46,6 @@ export const useMessages = (conversationId: string | null) => {
     load();
   }, [conversationId, setMessages]);
 
-  // Re-join room after reconnect (refreshSignal) or socket ready
   useEffect(() => {
     if (!socket || !conversationId) return;
 
@@ -97,10 +99,35 @@ export const useMessages = (conversationId: string | null) => {
 
   const sendMessage = useCallback(
     (content: string, type: "TEXT" | "IMAGE" | "FILE" = "TEXT") => {
-      if (!socket || !conversationId || !content.trim()) return;
-      socket.emit("send_message", { conversationId, content, type });
+      const trimmed = content.trim();
+      if (!conversationId || !trimmed || !dbUser) return;
+
+      if (!socket?.connected) {
+        console.warn("[Chat] Socket disconnected — message not sent");
+        return;
+      }
+
+      const tempId = `pending-${Date.now()}`;
+      addMessage(conversationId, {
+        id: tempId,
+        conversationId,
+        senderId: dbUser.id,
+        content: trimmed,
+        type,
+        createdAt: new Date().toISOString(),
+        readBy: [dbUser.id],
+        sender: {
+          id: dbUser.id,
+          email: dbUser.email,
+          displayName: dbUser.displayName,
+          photoURL: dbUser.photoURL,
+          createdAt: dbUser.createdAt,
+        },
+      });
+
+      socket.emit("send_message", { conversationId, content: trimmed, type });
     },
-    [socket, conversationId]
+    [socket, conversationId, dbUser, addMessage]
   );
 
   return {
@@ -109,5 +136,6 @@ export const useMessages = (conversationId: string | null) => {
     hasMore,
     loadMore,
     sendMessage,
+    canSend: connected,
   };
 };

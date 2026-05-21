@@ -43,9 +43,9 @@ export const registerChatHandlers = (
       });
       if (!member) return;
 
+      // Persist to PostgreSQL first, then push in real time via Socket.io
       const message = await saveMessage(conversationId, userId, content, type);
 
-      io.to(conversationId).emit("new_message", message);
       const members = await prisma.groupMember.findMany({
         where: { conversationId },
         select: { userId: true },

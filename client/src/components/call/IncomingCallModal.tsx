@@ -41,7 +41,11 @@ const IncomingCallModal: React.FC<IncomingCallModalProps> = ({
               <button
                 type="button"
                 className="call-btn call-btn-reject"
-                onClick={onReject}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onReject();
+                }}
                 aria-label="Decline call"
               >
                 ✕
@@ -49,7 +53,11 @@ const IncomingCallModal: React.FC<IncomingCallModalProps> = ({
               <button
                 type="button"
                 className="call-btn call-btn-accept"
-                onClick={onAccept}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onAccept();
+                }}
                 aria-label="Accept call"
               >
                 {isVideo ? "📹" : "📞"}

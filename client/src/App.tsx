@@ -1,5 +1,5 @@
 import React from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { AuthProvider, useAuthContext } from "./contexts/AuthContext";
 import { SocketProvider } from "./contexts/SocketContext";
 import CallProvider from "./contexts/CallProvider";
@@ -23,6 +23,15 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   return <>{children}</>;
 };
 
+/** Socket + calls active for all logged-in pages */
+const RealtimeShell: React.FC = () => (
+  <SocketProvider>
+    <CallProvider>
+      <Outlet />
+    </CallProvider>
+  </SocketProvider>
+);
+
 const AppRoutes = () => {
   const { dbUser, loading } = useAuthContext();
 
@@ -42,17 +51,14 @@ const AppRoutes = () => {
       />
       <Route path="/login" element={<LoginPage />} />
       <Route
-        path="/chat"
         element={
           <ProtectedRoute>
-            <SocketProvider>
-              <CallProvider>
-                <ChatPage />
-              </CallProvider>
-            </SocketProvider>
+            <RealtimeShell />
           </ProtectedRoute>
         }
-      />
+      >
+        <Route path="/chat" element={<ChatPage />} />
+      </Route>
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );

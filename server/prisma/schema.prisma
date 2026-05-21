@@ -113,3 +113,28 @@ model Message {
   @@index([conversationId, createdAt])
   @@index([senderId])
 }
+
+enum CallStatus {
+  RINGING
+  ACCEPTED
+  REJECTED
+  ENDED
+  MISSED
+  FAILED
+}
+
+// Voice/video call history — signaling via Socket.io, state persisted here
+model CallSession {
+  id             String     @id
+  conversationId String
+  callerId       String
+  calleeId       String
+  callType       String
+  status         CallStatus @default(RINGING)
+  startedAt      DateTime   @default(now())
+  endedAt        DateTime?
+
+  @@index([conversationId, startedAt])
+  @@index([callerId])
+  @@index([calleeId])
+}
